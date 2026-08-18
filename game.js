@@ -448,12 +448,64 @@
     };
   }
 
+  // Several lines per grade so replaying doesn't show the same message
+  // every time you land in the same bracket.
+  const GRADE_MESSAGES = {
+    S: [
+      "太神啦！根本活地圖！",
+      "地理老師都要跟你請教了！",
+      "這根本是空拍圖等級的精準度！",
+      "衛星都要重新校正了吧！",
+      "台灣地理小博士，實至名歸！",
+      "這雙手是不是裝了 GPS？",
+      "精準到內政部想挖角你去畫地圖了",
+    ],
+    A: [
+      "非常接近，地理小達人！",
+      "只差臨門一腳就是滿分了！",
+      "肉眼幾乎看不出差別，超讚！",
+      "這實力可以去畫地圖冊了",
+      "細節再抓一下就完美了！",
+      "老師會給你貼星星貼紙的等級",
+    ],
+    B: [
+      "抓到大致輪廓了，繼續練習！",
+      "有模有樣，但細節還要加油！",
+      "台灣的骨架抓對了，肉要再補一下",
+      "方向感不錯，比例再練練！",
+      "看得出用心，再多畫幾次會更準",
+      "半成品的台灣，繼續努力",
+    ],
+    C: [
+      "有台灣的影子，但還差一點",
+      "嗯…有點抽象藝術的感覺",
+      "地理課本可能要哭了",
+      "這個形狀…是台灣的親戚嗎？",
+      "感覺得出你有嘗試，但方向要再調整",
+      "半個台灣不見了，發生什麼事？",
+    ],
+    D: [
+      "嗯...這是哪裡？再試一次吧！",
+      "這比較像抽象畫，不是地圖",
+      "台灣表示：這不是我，不是我",
+      "建議先偷瞄一眼地圖再挑戰一次",
+      "這外星地形挺有創意的",
+      "重新來過，你可以的！",
+    ],
+  };
+
+  function pickRandom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
   function gradeFor(scorePct) {
-    if (scorePct >= 90) return ["S", "太神啦！根本活地圖！"];
-    if (scorePct >= 75) return ["A", "非常接近，地理小達人！"];
-    if (scorePct >= 55) return ["B", "抓到大致輪廓了，繼續練習！"];
-    if (scorePct >= 35) return ["C", "有台灣的影子，但還差一點"];
-    return ["D", "嗯...這是哪裡？再試一次吧！"];
+    let grade;
+    if (scorePct >= 90) grade = "S";
+    else if (scorePct >= 75) grade = "A";
+    else if (scorePct >= 55) grade = "B";
+    else if (scorePct >= 35) grade = "C";
+    else grade = "D";
+    return [grade, pickRandom(GRADE_MESSAGES[grade])];
   }
 
   function setBar(barEl, valueEl, pct) {
