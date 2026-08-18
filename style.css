@@ -140,6 +140,16 @@ button:active {
   font-weight: 700;
 }
 
+#download-card-btn {
+  background: transparent;
+  border: 2px solid var(--ocean-light);
+  color: var(--ink);
+}
+
+#download-card-btn:hover {
+  background: var(--ocean-light);
+}
+
 #result-panel {
   margin-top: 20px;
   padding: 18px 24px;

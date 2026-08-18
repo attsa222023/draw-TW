@@ -233,6 +233,9 @@
   const positionBar = document.getElementById("position-bar");
   const positionScoreValue = document.getElementById("position-score-value");
   const scoreAnalysisEl = document.getElementById("score-analysis");
+  const downloadCardBtn = document.getElementById("download-card-btn");
+
+  let lastResult = null; // {scores, grade, message} for the download-card button
 
   function updateBestScoreDisplay(records) {
     if (records.attempts === 0) {
@@ -513,6 +516,116 @@
     valueEl.textContent = `${pct}%`;
   }
 
+  // Draws `text` centered at `centerX`, wrapping character-by-character
+  // (fine for CJK, which has no word-boundary spaces) to fit `maxWidth`.
+  // Returns the total height consumed so callers can advance their cursor.
+  function wrapText(ctx, text, centerX, startY, maxWidth, lineHeight) {
+    let line = "";
+    const lines = [];
+    for (const ch of text) {
+      const test = line + ch;
+      if (line !== "" && ctx.measureText(test).width > maxWidth) {
+        lines.push(line);
+        line = ch;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l, centerX, startY + i * lineHeight));
+    return lines.length * lineHeight;
+  }
+
+  // Composites a shareable "score card" PNG: title, grade/score/message,
+  // the map (ocean + diff overlay, straight from the game canvases), the
+  // three sub-scores, and one highlight analysis line.
+  function buildScoreCard(scores, grade, message) {
+    const margin = 28;
+    const cardW = CANVAS_W + margin * 2;
+    const contentW = cardW - margin * 2;
+    const approxCardH = CANVAS_H + 300;
+    const scratchH = CANVAS_H + 500;
+
+    const scratch = document.createElement("canvas");
+    scratch.width = cardW;
+    scratch.height = scratchH;
+    const ctx = scratch.getContext("2d");
+
+    const grad = ctx.createLinearGradient(0, 0, 0, approxCardH);
+    grad.addColorStop(0, "#0b3d5c");
+    grad.addColorStop(1, "#06263b");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cardW, scratchH);
+
+    ctx.textAlign = "center";
+    let y = margin;
+
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "bold 18px sans-serif";
+    ctx.fillText("🇹🇼 畫出台灣", cardW / 2, y + 18);
+    y += 34;
+
+    ctx.fillStyle = "#ffb703";
+    ctx.font = "800 60px sans-serif";
+    ctx.fillText(grade, cardW / 2, y + 50);
+    y += 68;
+
+    ctx.fillStyle = "#eaf6ff";
+    ctx.font = "bold 24px sans-serif";
+    ctx.fillText(`準確度 ${scores.overall}%`, cardW / 2, y + 20);
+    y += 34;
+
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "15px sans-serif";
+    y += wrapText(ctx, message, cardW / 2, y + 16, contentW - 20, 20);
+    y += 16;
+
+    ctx.drawImage(bgCanvas, margin, y, CANVAS_W, CANVAS_H);
+    ctx.drawImage(resultCanvas, margin, y, CANVAS_W, CANVAS_H);
+    y += CANVAS_H + 20;
+
+    ctx.fillStyle = "#eaf6ff";
+    ctx.font = "bold 14px sans-serif";
+    const statLabels = [`形狀 ${scores.shape}%`, `大小 ${scores.size}%`, `位置 ${scores.position}%`];
+    const statGap = contentW / 3;
+    statLabels.forEach((label, i) => {
+      ctx.fillText(label, margin + statGap * i + statGap / 2, y + 16);
+    });
+    y += 40;
+
+    const highlight = scores.analysis[scores.analysis.length - 1];
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "14px sans-serif";
+    y += wrapText(ctx, highlight, cardW / 2, y + 16, contentW - 20, 18);
+    y += 20;
+
+    ctx.fillStyle = "rgba(234,246,255,0.55)";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("attsa222023.github.io/draw-TW", cardW / 2, y + 12);
+    y += 30;
+
+    const finalCard = document.createElement("canvas");
+    finalCard.width = cardW;
+    finalCard.height = Math.ceil(y);
+    finalCard.getContext("2d").drawImage(scratch, 0, 0);
+    return finalCard;
+  }
+
+  function downloadScoreCard(scores, grade, message) {
+    const card = buildScoreCard(scores, grade, message);
+    card.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `draw-taiwan-${scores.overall}pct.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  }
+
   function renderResult(playerPoints, scores, grade, message, isNewBest) {
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultCtx.putImageData(scores.diffImage, 0, 0);
@@ -564,17 +677,25 @@
     const { records, isNewBest } = recordAttempt(scores.overall, grade);
     updateBestScoreDisplay(records);
     renderResult(points, scores, grade, message, isNewBest);
+    lastResult = { scores, grade, message };
 
     undoBtn.hidden = true;
     clearBtn.hidden = true;
     finishBtn.hidden = true;
+    downloadCardBtn.hidden = false;
     retryBtn.hidden = false;
+  });
+
+  downloadCardBtn.addEventListener("click", () => {
+    if (!lastResult) return;
+    downloadScoreCard(lastResult.scores, lastResult.grade, lastResult.message);
   });
 
   retryBtn.addEventListener("click", () => {
     strokes = [];
     currentStroke = null;
     finished = false;
+    lastResult = null;
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultPanel.hidden = true;
@@ -582,6 +703,7 @@
     undoBtn.hidden = false;
     clearBtn.hidden = false;
     finishBtn.hidden = false;
+    downloadCardBtn.hidden = true;
     retryBtn.hidden = true;
   });
 })();
