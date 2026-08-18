@@ -37,6 +37,25 @@
       <div id="score-grade"></div>
       <div id="score-number"></div>
       <p id="score-message"></p>
+
+      <div id="score-breakdown">
+        <div class="score-item">
+          <span class="score-item-label">形狀相似度</span>
+          <div class="score-bar"><div class="score-bar-fill" id="shape-bar"></div></div>
+          <span class="score-item-value" id="shape-score-value">0%</span>
+        </div>
+        <div class="score-item">
+          <span class="score-item-label">比例大小</span>
+          <div class="score-bar"><div class="score-bar-fill" id="size-bar"></div></div>
+          <span class="score-item-value" id="size-score-value">0%</span>
+        </div>
+        <div class="score-item">
+          <span class="score-item-label">位置偏移</span>
+          <div class="score-bar"><div class="score-bar-fill" id="position-bar"></div></div>
+          <span class="score-item-value" id="position-score-value">0%</span>
+        </div>
+      </div>
+
       <div class="legend">
         <span><i class="swatch swatch-real"></i>真實輪廓</span>
         <span><i class="swatch swatch-player"></i>你畫的輪廓</span>

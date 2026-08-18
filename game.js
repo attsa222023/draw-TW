@@ -226,6 +226,12 @@
   const scoreMessageEl = document.getElementById("score-message");
   const bestScoreLine = document.getElementById("best-score-line");
   const newRecordBadge = document.getElementById("new-record-badge");
+  const shapeBar = document.getElementById("shape-bar");
+  const shapeScoreValue = document.getElementById("shape-score-value");
+  const sizeBar = document.getElementById("size-bar");
+  const sizeScoreValue = document.getElementById("size-score-value");
+  const positionBar = document.getElementById("position-bar");
+  const positionScoreValue = document.getElementById("position-score-value");
 
   function updateBestScoreDisplay(records) {
     if (records.attempts === 0) {
@@ -263,18 +269,79 @@
     return ctx.getImageData(0, 0, CANVAS_W, CANVAS_H).data;
   }
 
-  function computeIoU(playerPoints) {
-    const realData = rasterize(REAL_PATH);
-    const playerData = rasterize(playerPoints);
+  // Fills two rasterized masks (alpha channels) and returns their IoU.
+  function maskIoU(dataA, dataB) {
     let intersection = 0;
     let union = 0;
-    for (let i = 3; i < realData.length; i += 4) {
-      const real = realData[i] > 0;
-      const player = playerData[i] > 0;
-      if (real || player) union++;
-      if (real && player) intersection++;
+    for (let i = 3; i < dataA.length; i += 4) {
+      const a = dataA[i] > 0;
+      const b = dataB[i] > 0;
+      if (a || b) union++;
+      if (a && b) intersection++;
     }
     return union === 0 ? 0 : intersection / union;
+  }
+
+  // Pixel count + centroid (in canvas px) of a rasterized mask's filled area.
+  function maskStats(data) {
+    let count = 0;
+    let sumX = 0;
+    let sumY = 0;
+    for (let i = 0, idx = 3; idx < data.length; i++, idx += 4) {
+      if (data[idx] > 0) {
+        count++;
+        sumX += i % CANVAS_W;
+        sumY += (i / CANVAS_W) | 0;
+      }
+    }
+    return {
+      count,
+      centroid: count === 0 ? { x: CANVAS_W / 2, y: CANVAS_H / 2 } : { x: sumX / count, y: sumY / count },
+    };
+  }
+
+  // Breaks accuracy into three diagnostic sub-scores, plus the overall IoU
+  // (used for the headline score/grade, unchanged from before):
+  //  - shape:    IoU after re-centering + re-scaling the player's drawing to
+  //              match the real outline's centroid/size, isolating pure
+  //              silhouette accuracy from size/position error
+  //  - size:     ratio of filled area (smaller/larger), independent of shape/position
+  //  - position: how close the two centroids are, normalized to the real
+  //              shape's own scale so it works at any zoom level
+  function computeScores(playerPoints) {
+    const realData = rasterize(REAL_PATH);
+    const playerData = rasterize(playerPoints);
+    const real = maskStats(realData);
+    const player = maskStats(playerData);
+
+    const overall = maskIoU(realData, playerData);
+
+    const sizeScore = player.count === 0 || real.count === 0
+      ? 0
+      : Math.min(player.count, real.count) / Math.max(player.count, real.count);
+
+    const dx = player.centroid.x - real.centroid.x;
+    const dy = player.centroid.y - real.centroid.y;
+    const offsetPx = Math.sqrt(dx * dx + dy * dy);
+    const scaleRef = Math.sqrt(real.count);
+    const positionScore = scaleRef === 0 ? 0 : Math.max(0, 1 - offsetPx / scaleRef);
+
+    let shapeScore = 0;
+    if (player.count > 0) {
+      const scaleFactor = Math.sqrt(real.count / player.count);
+      const aligned = playerPoints.map((p) => ({
+        x: real.centroid.x + (p.x - player.centroid.x) * scaleFactor,
+        y: real.centroid.y + (p.y - player.centroid.y) * scaleFactor,
+      }));
+      shapeScore = maskIoU(realData, rasterize(aligned));
+    }
+
+    return {
+      overall: Math.round(overall * 100),
+      shape: Math.round(shapeScore * 100),
+      size: Math.round(sizeScore * 100),
+      position: Math.round(positionScore * 100),
+    };
   }
 
   function gradeFor(scorePct) {
@@ -285,7 +352,12 @@
     return ["D", "嗯...這是哪裡？再試一次吧！"];
   }
 
-  function renderResult(playerPoints, scorePct, grade, message, isNewBest) {
+  function setBar(barEl, valueEl, pct) {
+    barEl.style.width = `${pct}%`;
+    valueEl.textContent = `${pct}%`;
+  }
+
+  function renderResult(playerPoints, scores, grade, message, isNewBest) {
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     function fillPath(points, color) {
@@ -305,8 +377,11 @@
 
     newRecordBadge.hidden = !isNewBest;
     scoreGradeEl.textContent = grade;
-    scoreNumberEl.textContent = `準確度 ${scorePct}%`;
+    scoreNumberEl.textContent = `準確度 ${scores.overall}%`;
     scoreMessageEl.textContent = message;
+    setBar(shapeBar, shapeScoreValue, scores.shape);
+    setBar(sizeBar, sizeScoreValue, scores.size);
+    setBar(positionBar, positionScoreValue, scores.position);
     resultPanel.hidden = false;
   }
 
@@ -320,12 +395,11 @@
     finished = true;
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    const iou = computeIoU(points);
-    const scorePct = Math.round(iou * 100);
-    const [grade, message] = gradeFor(scorePct);
-    const { records, isNewBest } = recordAttempt(scorePct, grade);
+    const scores = computeScores(points);
+    const [grade, message] = gradeFor(scores.overall);
+    const { records, isNewBest } = recordAttempt(scores.overall, grade);
     updateBestScoreDisplay(records);
-    renderResult(points, scorePct, grade, message, isNewBest);
+    renderResult(points, scores, grade, message, isNewBest);
 
     undoBtn.hidden = true;
     clearBtn.hidden = true;
