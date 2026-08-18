@@ -300,6 +300,34 @@
     };
   }
 
+  // Colors used to mark, pixel by pixel, where the two masks agree/disagree.
+  const DIFF_COLOR_CORRECT = [46, 204, 113, 150]; // real & player overlap
+  const DIFF_COLOR_OVER = [255, 82, 82, 150]; // player only -- drawn but not real ("多畫的地方")
+  const DIFF_COLOR_UNDER = [155, 89, 182, 160]; // real only -- missed ("少畫的地方")
+
+  // Builds a per-pixel comparison image: green where both masks agree,
+  // red where the player drew outside the real outline, purple where the
+  // player missed part of the real outline.
+  function buildDiffImage(realData, playerData) {
+    const img = new ImageData(CANVAS_W, CANVAS_H);
+    const out = img.data;
+    for (let idx = 3; idx < realData.length; idx += 4) {
+      const real = realData[idx] > 0;
+      const player = playerData[idx] > 0;
+      let color = null;
+      if (real && player) color = DIFF_COLOR_CORRECT;
+      else if (player) color = DIFF_COLOR_OVER;
+      else if (real) color = DIFF_COLOR_UNDER;
+      if (color) {
+        out[idx - 3] = color[0];
+        out[idx - 2] = color[1];
+        out[idx - 1] = color[2];
+        out[idx] = color[3];
+      }
+    }
+    return img;
+  }
+
   // Breaks accuracy into three diagnostic sub-scores, plus the overall IoU
   // (used for the headline score/grade, unchanged from before):
   //  - shape:    IoU after re-centering + re-scaling the player's drawing to
@@ -341,6 +369,7 @@
       shape: Math.round(shapeScore * 100),
       size: Math.round(sizeScore * 100),
       position: Math.round(positionScore * 100),
+      diffImage: buildDiffImage(realData, playerData),
     };
   }
 
@@ -359,21 +388,20 @@
 
   function renderResult(playerPoints, scores, grade, message, isNewBest) {
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    resultCtx.putImageData(scores.diffImage, 0, 0);
 
-    function fillPath(points, color) {
+    function strokePath(points, color) {
       resultCtx.beginPath();
       resultCtx.moveTo(points[0].x, points[0].y);
       for (const p of points) resultCtx.lineTo(p.x, p.y);
       resultCtx.closePath();
-      resultCtx.fillStyle = color;
-      resultCtx.fill();
       resultCtx.lineWidth = 2;
-      resultCtx.strokeStyle = color.replace(/[\d.]+\)$/, "0.9)");
+      resultCtx.strokeStyle = color;
       resultCtx.stroke();
     }
 
-    fillPath(REAL_PATH, "rgba(46, 204, 113, 0.45)");
-    fillPath(playerPoints, "rgba(255, 82, 82, 0.45)");
+    strokePath(REAL_PATH, "rgba(46, 204, 113, 0.9)");
+    strokePath(playerPoints, "rgba(255, 82, 82, 0.9)");
 
     newRecordBadge.hidden = !isNewBest;
     scoreGradeEl.textContent = grade;

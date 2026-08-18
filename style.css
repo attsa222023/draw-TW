@@ -6,6 +6,7 @@
   --accent: #ffb703;
   --player-color: #ff5252;
   --real-color: #2ecc71;
+  --miss-color: #9b59b6;
   --panel-bg: rgba(255, 255, 255, 0.08);
 }
 
@@ -223,7 +224,8 @@ button:active {
 
 .legend {
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   justify-content: center;
   margin-top: 10px;
   font-size: 0.85rem;
@@ -242,10 +244,14 @@ button:active {
   border-radius: 3px;
 }
 
-.swatch-real {
+.swatch-correct {
   background: var(--real-color);
 }
 
-.swatch-player {
+.swatch-over {
   background: var(--player-color);
+}
+
+.swatch-under {
+  background: var(--miss-color);
 }
