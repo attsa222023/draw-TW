@@ -12,11 +12,13 @@ scored on how closely your shape overlaps the real coastline.
 - Draw the island's outline with mouse or touch — you can lift and continue, points are stitched into one continuous path.
 - Hit **完成** (Finish) to close the shape and score it: your drawing and the real coastline are rasterized onto the same grid and compared by intersection-over-union (IoU), so shape, proportion, and position all count.
 - Results are graded S/A/B/C/D with a side-by-side overlay (green = real outline, red = your drawing).
+- Your best score, grade, and attempt count are saved locally and shown under the title; beating your best pops a "新紀錄" badge.
 
 ## Files
 
 - `index.html` / `style.css` — page markup and styling
 - `taiwan-data.js` — Taiwan's main-island outline (406 points), simplified from [Natural Earth 10m admin-0 country boundaries](https://github.com/datasets/geo-countries) — excludes outlying islands (Penghu, Kinmen, Matsu, etc.)
+- `records.js` — localStorage-backed best score/attempt tracking
 - `game.js` — projection math, drawing interaction, and IoU-based scoring
 
 ## Running it locally
