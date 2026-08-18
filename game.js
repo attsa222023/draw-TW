@@ -420,4 +420,6 @@
     finishBtn.hidden = false;
     retryBtn.hidden = true;
   });
+
+  window.__debug = { CANVAS_W, CANVAS_H, REAL_PATH, rasterize, maskIoU, maskStats, computeScores };
 })();
