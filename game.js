@@ -224,6 +224,18 @@
   const scoreGradeEl = document.getElementById("score-grade");
   const scoreNumberEl = document.getElementById("score-number");
   const scoreMessageEl = document.getElementById("score-message");
+  const bestScoreLine = document.getElementById("best-score-line");
+  const newRecordBadge = document.getElementById("new-record-badge");
+
+  function updateBestScoreDisplay(records) {
+    if (records.attempts === 0) {
+      bestScoreLine.textContent = "🏆 最高紀錄：尚未挑戰";
+      return;
+    }
+    bestScoreLine.textContent = `🏆 最高紀錄：${records.bestScore}% (${records.bestGrade}) ・ 已挑戰 ${records.attempts} 次`;
+  }
+
+  updateBestScoreDisplay(loadRecords());
 
   undoBtn.addEventListener("click", () => {
     if (finished) return;
@@ -273,7 +285,7 @@
     return ["D", "嗯...這是哪裡？再試一次吧！"];
   }
 
-  function renderResult(playerPoints, scorePct) {
+  function renderResult(playerPoints, scorePct, grade, message, isNewBest) {
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     function fillPath(points, color) {
@@ -291,7 +303,7 @@
     fillPath(REAL_PATH, "rgba(46, 204, 113, 0.45)");
     fillPath(playerPoints, "rgba(255, 82, 82, 0.45)");
 
-    const [grade, message] = gradeFor(scorePct);
+    newRecordBadge.hidden = !isNewBest;
     scoreGradeEl.textContent = grade;
     scoreNumberEl.textContent = `準確度 ${scorePct}%`;
     scoreMessageEl.textContent = message;
@@ -310,7 +322,10 @@
 
     const iou = computeIoU(points);
     const scorePct = Math.round(iou * 100);
-    renderResult(points, scorePct);
+    const [grade, message] = gradeFor(scorePct);
+    const { records, isNewBest } = recordAttempt(scorePct, grade);
+    updateBestScoreDisplay(records);
+    renderResult(points, scorePct, grade, message, isNewBest);
 
     undoBtn.hidden = true;
     clearBtn.hidden = true;

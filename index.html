@@ -10,6 +10,7 @@
   <header>
     <h1>畫出台灣</h1>
     <p class="subtitle">憑記憶畫出台灣本島的輪廓，看看你能拿到幾分</p>
+    <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
   </header>
 
   <main>
@@ -32,6 +33,7 @@
     </div>
 
     <div id="result-panel" hidden>
+      <div id="new-record-badge" hidden>🎉 新紀錄！</div>
       <div id="score-grade"></div>
       <div id="score-number"></div>
       <p id="score-message"></p>
@@ -43,6 +45,7 @@
   </main>
 
   <script src="taiwan-data.js"></script>
+  <script src="records.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
