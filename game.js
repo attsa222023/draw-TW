@@ -232,6 +232,7 @@
   const sizeScoreValue = document.getElementById("size-score-value");
   const positionBar = document.getElementById("position-bar");
   const positionScoreValue = document.getElementById("position-score-value");
+  const scoreAnalysisEl = document.getElementById("score-analysis");
 
   function updateBestScoreDisplay(records) {
     if (records.attempts === 0) {
@@ -328,6 +329,79 @@
     return img;
   }
 
+  // Alpha value of a mask at the pixel nearest (x, y); 0 (outside/unfilled)
+  // for out-of-bounds coordinates.
+  function nearestPixelAlpha(data, x, y) {
+    const px = Math.round(x);
+    const py = Math.round(y);
+    if (px < 0 || py < 0 || px >= CANVAS_W || py >= CANVAS_H) return 0;
+    return data[(py * CANVAS_W + px) * 4 + 3];
+  }
+
+  // 8-way compass label for a screen-space angle (atan2(dy, dx) in degrees),
+  // where +x = east and +y = south (matches this game's projection).
+  function compassLabel(angleDeg) {
+    const dirs = ["東", "東南", "南", "西南", "西", "西北", "北", "東北"];
+    const normalized = ((angleDeg % 360) + 360) % 360;
+    return dirs[Math.round(normalized / 45) % 8];
+  }
+
+  // Turns the raw stats into a few plain-language, slightly playful lines:
+  // how far off the size was (in km², relative to a familiar reference
+  // area), which direction the drawing drifted, and whether any major city
+  // ended up outside the drawn shape ("sank into the sea").
+  function buildAnalysis(real, player, playerData) {
+    const lines = [];
+
+    // -- size, in real-world km^2 -----------------------------------------
+    const diffKm2 = (player.count - real.count) * KM_PER_PX * KM_PER_PX;
+    const absDiffKm2 = Math.abs(diffKm2);
+    if (absDiffKm2 < 80) {
+      lines.push(`📐 面積掌握得很準，只差了約 ${Math.round(absDiffKm2)} 平方公里！`);
+    } else {
+      let best = REFERENCE_AREAS[0];
+      let bestScore = Infinity;
+      for (const ref of REFERENCE_AREAS) {
+        const s = Math.abs(Math.log(absDiffKm2 / ref.area));
+        if (s < bestScore) {
+          bestScore = s;
+          best = ref;
+        }
+      }
+      const times = (absDiffKm2 / best.area).toFixed(1);
+      const verb = diffKm2 > 0 ? "大了" : "小了";
+      lines.push(
+        `📐 你畫的台灣比實際${verb}約 ${Math.round(absDiffKm2).toLocaleString()} 平方公里，相當於 ${times} 個${best.name}的面積`
+      );
+    }
+
+    // -- position drift, as a compass direction + distance ----------------
+    const dx = player.centroid.x - real.centroid.x;
+    const dy = player.centroid.y - real.centroid.y;
+    const offsetKm = Math.sqrt(dx * dx + dy * dy) * KM_PER_PX;
+    if (offsetKm < 5) {
+      lines.push("🧭 位置幾乎完全正確！");
+    } else {
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      lines.push(`🧭 你畫的台灣整體偏向${compassLabel(angle)}方，大約偏移了 ${Math.round(offsetKm)} 公里`);
+    }
+
+    // -- did any major city end up outside the drawn shape? ---------------
+    const sunk = TAIWAN_CITIES.filter((city) => {
+      const p = toCanvas(city.lon, city.lat);
+      return nearestPixelAlpha(playerData, p.x, p.y) === 0;
+    });
+    if (sunk.length === 0) {
+      lines.push("🏙️ 所有主要城市都平安上岸，沒有人被你畫掉！");
+    } else if (sunk.length <= 2) {
+      lines.push(`🌊 慘了，${sunk.map((c) => c.name).join("、")}好像沉進海裡了！`);
+    } else {
+      lines.push(`🌊 有 ${sunk.length} 個主要城市消失在海裡，你的台灣是不是縮水太多了？`);
+    }
+
+    return lines;
+  }
+
   // Breaks accuracy into three diagnostic sub-scores, plus the overall IoU
   // (used for the headline score/grade, unchanged from before):
   //  - shape:    IoU after re-centering + re-scaling the player's drawing to
@@ -370,6 +444,7 @@
       size: Math.round(sizeScore * 100),
       position: Math.round(positionScore * 100),
       diffImage: buildDiffImage(realData, playerData),
+      analysis: buildAnalysis(real, player, playerData),
     };
   }
 
@@ -410,6 +485,15 @@
     setBar(shapeBar, shapeScoreValue, scores.shape);
     setBar(sizeBar, sizeScoreValue, scores.size);
     setBar(positionBar, positionScoreValue, scores.position);
+
+    scoreAnalysisEl.innerHTML = "";
+    for (const line of scores.analysis) {
+      const div = document.createElement("div");
+      div.className = "analysis-line";
+      div.textContent = line;
+      scoreAnalysisEl.appendChild(div);
+    }
+
     resultPanel.hidden = false;
   }
 
