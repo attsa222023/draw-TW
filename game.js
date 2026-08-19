@@ -684,6 +684,14 @@
     finishBtn.hidden = true;
     downloadCardBtn.hidden = false;
     retryBtn.hidden = false;
+
+    // On mobile the result panel sits below the height-constrained canvas
+    // and isn't obviously visible; scroll it into view (after layout has
+    // picked up `hidden` being cleared) instead of leaving the player to
+    // discover they need to scroll.
+    requestAnimationFrame(() => {
+      resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   });
 
   downloadCardBtn.addEventListener("click", () => {
@@ -705,5 +713,7 @@
     finishBtn.hidden = false;
     downloadCardBtn.hidden = true;
     retryBtn.hidden = true;
+
+    wrap.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 })();
