@@ -17,6 +17,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(180deg, #06263b 0%, #0b3d5c 100%);
   color: var(--ink);
   font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
@@ -280,4 +281,70 @@ button:active {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   padding: 8px 12px;
+}
+
+/* Compact mobile layout: the goal is to fit the whole canvas in the
+   viewport (no scrolling needed mid-draw, which is what causes stray
+   strokes when a scroll gesture starts on the canvas instead of the
+   page) and keep 完成/清除重畫 etc. always reachable via a bottom bar
+   that's fixed regardless of scroll position or canvas height. */
+@media (max-width: 640px) {
+  body {
+    padding: 10px 10px calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tagline {
+    display: none;
+  }
+
+  header {
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    margin-bottom: 2px;
+  }
+
+  #best-score-line {
+    margin-top: 2px;
+    font-size: 0.78rem;
+  }
+
+  #hint-bar {
+    gap: 4px 8px;
+    margin-bottom: 8px;
+    font-size: 0.72rem;
+  }
+
+  .hint {
+    padding: 3px 8px;
+  }
+
+  #canvas-wrap {
+    width: auto;
+    max-width: 100%;
+    height: calc(100vh - 190px);
+    height: calc(100dvh - 190px);
+    min-height: 260px;
+  }
+
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    gap: 8px;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(6, 38, 59, 0.95);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+    z-index: 10;
+  }
+
+  #controls button {
+    padding: 9px 14px;
+    font-size: 0.88rem;
+  }
 }
