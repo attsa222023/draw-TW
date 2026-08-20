@@ -1,11 +1,16 @@
 // localStorage-backed high score tracking for the Draw Taiwan game.
 // Kept as a small global (not an IIFE) so game.js can call it directly,
 // same pattern as taiwan-data.js exposing TAIWAN_OUTLINE.
+//
+// Takes a storage key so normal mode and daily-challenge mode (which has
+// varying difficulty day to day, so its scores aren't comparable to normal
+// mode's) can keep separate best-score tracks.
 const RECORDS_KEY = "drawTaiwanRecords";
+const CHALLENGE_RECORDS_KEY = "drawTaiwanChallengeRecords";
 
-function loadRecords() {
+function loadRecords(key) {
   try {
-    const raw = localStorage.getItem(RECORDS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return { bestScore: 0, bestGrade: null, attempts: 0 };
     const parsed = JSON.parse(raw);
     return {
@@ -21,8 +26,8 @@ function loadRecords() {
 
 // Records one finished attempt, updating the best score if beaten.
 // Returns the updated records plus whether this attempt was a new best.
-function recordAttempt(scorePct, grade) {
-  const records = loadRecords();
+function recordAttempt(key, scorePct, grade) {
+  const records = loadRecords(key);
   records.attempts += 1;
   const isNewBest = scorePct > records.bestScore;
   if (isNewBest) {
@@ -30,7 +35,7 @@ function recordAttempt(scorePct, grade) {
     records.bestGrade = grade;
   }
   try {
-    localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+    localStorage.setItem(key, JSON.stringify(records));
   } catch (e) {
     // score just won't persist this session
   }

@@ -2,20 +2,24 @@
   "use strict";
 
   // ---- Projection setup ---------------------------------------------------
-  // Equirectangular projection anchored at Taiwan's northernmost point, with
-  // longitude scaled by cos(latitude) so shapes aren't east-west stretched.
+  // Equirectangular projection with longitude scaled by cos(latitude) so
+  // shapes aren't east-west stretched. Always anchored (for the underlying
+  // km math) at true north -- rotation for daily-challenge mode is applied
+  // afterward, in pixel space, so it never has to touch this part.
   const KM_PER_LAT = 110.574;
   const KM_PER_PX = 0.45; // world scale: 1 canvas pixel = 0.45 km
   const PAD = 50; // canvas padding around the shape, in pixels
   const SCALE_BAR_KM = 50;
 
-  let anchor = TAIWAN_OUTLINE[0];
-  for (const p of TAIWAN_OUTLINE) if (p[1] > anchor[1]) anchor = p;
-  anchor = { lon: anchor[0], lat: anchor[1] };
-
-  let southPoint = TAIWAN_OUTLINE[0];
-  for (const p of TAIWAN_OUTLINE) if (p[1] < southPoint[1]) southPoint = p;
-  southPoint = { lon: southPoint[0], lat: southPoint[1] };
+  function extremePoint(compare) {
+    let best = TAIWAN_OUTLINE[0];
+    for (const p of TAIWAN_OUTLINE) if (compare(p, best)) best = p;
+    return { lon: best[0], lat: best[1] };
+  }
+  const northPoint = extremePoint((p, best) => p[1] > best[1]);
+  const southPoint = extremePoint((p, best) => p[1] < best[1]);
+  const eastPoint = extremePoint((p, best) => p[0] > best[0]);
+  const westPoint = extremePoint((p, best) => p[0] < best[0]);
 
   let latSum = 0;
   for (const p of TAIWAN_OUTLINE) latSum += p[1];
@@ -24,33 +28,113 @@
 
   function projectKm(lon, lat) {
     return {
-      x: (lon - anchor.lon) * KM_PER_LON,
-      y: (anchor.lat - lat) * KM_PER_LAT, // south is positive (down on screen)
+      x: (lon - northPoint.lon) * KM_PER_LON,
+      y: (northPoint.lat - lat) * KM_PER_LAT, // south is positive (down on screen)
     };
   }
 
-  const kmPoints = TAIWAN_OUTLINE.map(([lon, lat]) => projectKm(lon, lat));
-  const minXKm = Math.min(...kmPoints.map((p) => p.x));
-  const maxXKm = Math.max(...kmPoints.map((p) => p.x));
-  const minYKm = Math.min(...kmPoints.map((p) => p.y));
-  const maxYKm = Math.max(...kmPoints.map((p) => p.y));
+  function rotateXY(pt, angleDeg) {
+    if (!angleDeg) return pt;
+    const rad = (angleDeg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    return { x: pt.x * cos - pt.y * sin, y: pt.x * sin + pt.y * cos };
+  }
 
-  const originPxX = PAD - minXKm / KM_PER_PX;
-  const originPxY = PAD - minYKm / KM_PER_PX;
-  const CANVAS_W = Math.ceil((maxXKm - minXKm) / KM_PER_PX + PAD * 2);
-  const CANVAS_H = Math.ceil((maxYKm - minYKm) / KM_PER_PX + PAD * 2);
+  // ---- Daily challenge --------------------------------------------------
+  // Deterministic per-day variant: either the map is rotated by a fixed
+  // angle (north no longer up), or the labeled reference point is swapped
+  // from the northernmost tip to the south/east/west extreme or a city.
+  // Seeded from today's date in Taipei time, so it's the same for everyone
+  // playing "today" and changes every day regardless of the player's own
+  // timezone.
+  function hashString(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    return h >>> 0;
+  }
+
+  function getTaipeiDateString() {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    } catch (e) {
+      return new Date().toISOString().slice(0, 10); // fallback: UTC date
+    }
+  }
+
+  const ROTATION_ANGLES = [30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+
+  function buildDailyVariantPool() {
+    const pool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
+    const anchorPoints = [
+      { label: "最南端", point: southPoint },
+      { label: "最東端", point: eastPoint },
+      { label: "最西端", point: westPoint },
+    ];
+    for (const city of TAIWAN_CITIES) anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat } });
+    for (const a of anchorPoints) pool.push({ type: "anchor", label: a.label, point: a.point });
+    return pool;
+  }
+  const DAILY_VARIANT_POOL = buildDailyVariantPool();
+  const todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
+
+  function describeTodayVariant() {
+    return todayVariant.type === "rotate"
+      ? `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`
+      : `起點換成「${todayVariant.label}」，不是最北端`;
+  }
+
+  // ---- Canvas / DOM setup --------------------------------------------------
+  const wrap = document.getElementById("canvas-wrap");
+  const bgCanvas = document.getElementById("bg-canvas");
+  const drawCanvas = document.getElementById("draw-canvas");
+  const resultCanvas = document.getElementById("result-canvas");
+  const bgCtx = bgCanvas.getContext("2d");
+  const drawCtx = drawCanvas.getContext("2d");
+  const resultCtx = resultCanvas.getContext("2d");
+  const startHintEl = document.getElementById("start-hint");
+
+  // Mutable per-mode projection state, recomputed by configureProjection()
+  // whenever the rotation changes (normal mode vs. a "rotate" daily variant).
+  let CANVAS_W, CANVAS_H, originPxX, originPxY, currentRotationDeg;
+  let REAL_PATH;
 
   function toCanvas(lon, lat) {
     const km = projectKm(lon, lat);
-    return {
-      x: originPxX + km.x / KM_PER_PX,
-      y: originPxY + km.y / KM_PER_PX,
-    };
+    const rotated = rotateXY({ x: km.x / KM_PER_PX, y: km.y / KM_PER_PX }, currentRotationDeg);
+    return { x: originPxX + rotated.x, y: originPxY + rotated.y };
   }
 
-  const REAL_PATH = TAIWAN_OUTLINE.map(([lon, lat]) => toCanvas(lon, lat));
-  const ANCHOR_PX = toCanvas(anchor.lon, anchor.lat);
-  const SOUTH_PX = toCanvas(southPoint.lon, southPoint.lat);
+  function configureProjection(rotationDeg) {
+    currentRotationDeg = rotationDeg || 0;
+
+    const rotatedPts = TAIWAN_OUTLINE.map(([lon, lat]) => {
+      const km = projectKm(lon, lat);
+      return rotateXY({ x: km.x / KM_PER_PX, y: km.y / KM_PER_PX }, currentRotationDeg);
+    });
+    const minX = Math.min(...rotatedPts.map((p) => p.x));
+    const maxX = Math.max(...rotatedPts.map((p) => p.x));
+    const minY = Math.min(...rotatedPts.map((p) => p.y));
+    const maxY = Math.max(...rotatedPts.map((p) => p.y));
+
+    originPxX = PAD - minX;
+    originPxY = PAD - minY;
+    CANVAS_W = Math.ceil(maxX - minX + PAD * 2);
+    CANVAS_H = Math.ceil(maxY - minY + PAD * 2);
+
+    for (const c of [bgCanvas, drawCanvas, resultCanvas]) {
+      c.width = CANVAS_W;
+      c.height = CANVAS_H;
+    }
+    wrap.style.aspectRatio = `${CANVAS_W} / ${CANVAS_H}`;
+
+    REAL_PATH = TAIWAN_OUTLINE.map(([lon, lat]) => toCanvas(lon, lat));
+  }
 
   // Whether to show the southernmost-point marker (a second reference
   // point, on top of the scale bar, to make judging proportions easier).
@@ -73,21 +157,37 @@
   }
   let showSouthMarker = loadShowSouthMarker();
 
-  // ---- Canvas / DOM setup --------------------------------------------------
-  const wrap = document.getElementById("canvas-wrap");
-  const bgCanvas = document.getElementById("bg-canvas");
-  const drawCanvas = document.getElementById("draw-canvas");
-  const resultCanvas = document.getElementById("result-canvas");
+  // Today's primary "起點" reference point/label -- the true north tip in
+  // normal mode and on "rotate" challenge days, or the daily alternate
+  // point on "anchor" challenge days. Set by applyMode().
+  let primaryMarker = { label: "最北端", point: northPoint };
+  let challengeMode = false;
 
-  for (const c of [bgCanvas, drawCanvas, resultCanvas]) {
-    c.width = CANVAS_W;
-    c.height = CANVAS_H;
+  function drawPointMarker(px, color, label) {
+    bgCtx.beginPath();
+    bgCtx.arc(px.x, px.y, 7, 0, Math.PI * 2);
+    bgCtx.fillStyle = color;
+    bgCtx.fill();
+    bgCtx.lineWidth = 2;
+    bgCtx.strokeStyle = "#ffffff";
+    bgCtx.stroke();
+
+    const nearTop = px.y < 40;
+    const labelY = nearTop ? px.y + 30 : px.y - 14;
+    const labelX = Math.min(Math.max(px.x, 60), CANVAS_W - 60);
+
+    bgCtx.beginPath();
+    bgCtx.moveTo(px.x, px.y + (nearTop ? 7 : -7));
+    bgCtx.lineTo(labelX, labelY + (nearTop ? -12 : 4));
+    bgCtx.strokeStyle = "rgba(255,255,255,0.8)";
+    bgCtx.lineWidth = 1.5;
+    bgCtx.stroke();
+
+    bgCtx.fillStyle = "#ffffff";
+    bgCtx.font = "bold 13px sans-serif";
+    bgCtx.textAlign = "center";
+    bgCtx.fillText(label, labelX, labelY);
   }
-  wrap.style.aspectRatio = `${CANVAS_W} / ${CANVAS_H}`;
-
-  const bgCtx = bgCanvas.getContext("2d");
-  const drawCtx = drawCanvas.getContext("2d");
-  const resultCtx = resultCanvas.getContext("2d");
 
   function drawBackground() {
     bgCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
@@ -111,23 +211,29 @@
       bgCtx.stroke();
     }
 
-    // north indicator
+    // north indicator -- rotated to keep pointing at true north, so it
+    // stays honest (and useful) even when the map itself is rotated
+    bgCtx.save();
+    bgCtx.translate(CANVAS_W - 28, 34);
+    bgCtx.rotate((currentRotationDeg * Math.PI) / 180);
     bgCtx.fillStyle = "rgba(255,255,255,0.7)";
     bgCtx.font = "bold 16px sans-serif";
     bgCtx.textAlign = "center";
-    bgCtx.fillText("北", CANVAS_W - 28, 26);
+    bgCtx.fillText("北", 0, -8);
     bgCtx.beginPath();
-    bgCtx.moveTo(CANVAS_W - 28, 34);
-    bgCtx.lineTo(CANVAS_W - 28, 54);
-    bgCtx.moveTo(CANVAS_W - 28, 34);
-    bgCtx.lineTo(CANVAS_W - 33, 42);
-    bgCtx.moveTo(CANVAS_W - 28, 34);
-    bgCtx.lineTo(CANVAS_W - 23, 42);
+    bgCtx.moveTo(0, 0);
+    bgCtx.lineTo(0, 20);
+    bgCtx.moveTo(0, 0);
+    bgCtx.lineTo(-5, 8);
+    bgCtx.moveTo(0, 0);
+    bgCtx.lineTo(5, 8);
     bgCtx.strokeStyle = "rgba(255,255,255,0.7)";
     bgCtx.lineWidth = 2;
     bgCtx.stroke();
+    bgCtx.restore();
 
-    // scale bar
+    // scale bar -- stays screen-aligned regardless of rotation; it's a
+    // ruler, not a compass, so its meaning doesn't depend on orientation
     const barLenPx = SCALE_BAR_KM / KM_PER_PX;
     const barX = PAD * 0.6;
     const barY = CANVAS_H - PAD * 0.7;
@@ -146,52 +252,14 @@
     bgCtx.textAlign = "left";
     bgCtx.fillText(`${SCALE_BAR_KM} 公里`, barX, barY - 12);
 
-    // start point marker
-    bgCtx.beginPath();
-    bgCtx.arc(ANCHOR_PX.x, ANCHOR_PX.y, 7, 0, Math.PI * 2);
-    bgCtx.fillStyle = "#ffb703";
-    bgCtx.fill();
-    bgCtx.lineWidth = 2;
-    bgCtx.strokeStyle = "#ffffff";
-    bgCtx.stroke();
+    // primary reference-point marker (north normally, or today's variant)
+    const primaryPx = toCanvas(primaryMarker.point.lon, primaryMarker.point.lat);
+    drawPointMarker(primaryPx, "#ffb703", `起點：${primaryMarker.label}`);
 
-    const labelBelow = ANCHOR_PX.y < 40;
-    const labelY = labelBelow ? ANCHOR_PX.y + 30 : ANCHOR_PX.y - 14;
-    bgCtx.beginPath();
-    bgCtx.moveTo(ANCHOR_PX.x, ANCHOR_PX.y + (labelBelow ? 7 : -7));
-    bgCtx.lineTo(ANCHOR_PX.x, labelY + (labelBelow ? -12 : 4));
-    bgCtx.strokeStyle = "rgba(255,255,255,0.8)";
-    bgCtx.lineWidth = 1.5;
-    bgCtx.stroke();
-
-    bgCtx.fillStyle = "#ffffff";
-    bgCtx.font = "bold 13px sans-serif";
-    bgCtx.textAlign = "center";
-    bgCtx.fillText("起點：最北端", ANCHOR_PX.x, labelY);
-
-    // southernmost-point marker (optional second reference point)
-    if (showSouthMarker) {
-      bgCtx.beginPath();
-      bgCtx.arc(SOUTH_PX.x, SOUTH_PX.y, 7, 0, Math.PI * 2);
-      bgCtx.fillStyle = "#4fd1c5";
-      bgCtx.fill();
-      bgCtx.lineWidth = 2;
-      bgCtx.strokeStyle = "#ffffff";
-      bgCtx.stroke();
-
-      const southLabelBelow = SOUTH_PX.y > CANVAS_H - 40;
-      const southLabelY = southLabelBelow ? SOUTH_PX.y + 30 : SOUTH_PX.y - 14;
-      bgCtx.beginPath();
-      bgCtx.moveTo(SOUTH_PX.x, SOUTH_PX.y + (southLabelBelow ? 7 : -7));
-      bgCtx.lineTo(SOUTH_PX.x, southLabelY + (southLabelBelow ? -12 : 4));
-      bgCtx.strokeStyle = "rgba(255,255,255,0.8)";
-      bgCtx.lineWidth = 1.5;
-      bgCtx.stroke();
-
-      bgCtx.fillStyle = "#ffffff";
-      bgCtx.font = "bold 13px sans-serif";
-      bgCtx.textAlign = "center";
-      bgCtx.fillText("最南端", SOUTH_PX.x, southLabelY);
+    // optional secondary south marker -- skipped if it would just
+    // duplicate the primary marker (i.e. today's variant IS south)
+    if (showSouthMarker && primaryMarker.point !== southPoint) {
+      drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", "最南端");
     }
   }
 
@@ -202,8 +270,6 @@
     saveShowSouthMarker(showSouthMarker);
     drawBackground();
   });
-
-  drawBackground();
 
   // ---- Drawing interaction --------------------------------------------------
   let strokes = [];
@@ -297,18 +363,70 @@
   if (supportsFileShare) {
     downloadCardBtn.textContent = "分享成績卡片";
   }
+  const modeNormalBtn = document.getElementById("mode-normal-btn");
+  const modeChallengeBtn = document.getElementById("mode-challenge-btn");
+  const challengeDescEl = document.getElementById("challenge-desc");
 
   let lastResult = null; // {scores, grade, message} for the download-card button
 
-  function updateBestScoreDisplay(records) {
+  function updateBestScoreDisplay(records, isChallenge) {
+    const prefix = isChallenge ? "🏆 每日挑戰最高" : "🏆 最高紀錄";
     if (records.attempts === 0) {
-      bestScoreLine.textContent = "🏆 最高紀錄：尚未挑戰";
+      bestScoreLine.textContent = `${prefix}：尚未挑戰`;
       return;
     }
-    bestScoreLine.textContent = `🏆 最高紀錄：${records.bestScore}% (${records.bestGrade}) ・ 已挑戰 ${records.attempts} 次`;
+    bestScoreLine.textContent = `${prefix}：${records.bestScore}% (${records.bestGrade}) ・ 已挑戰 ${records.attempts} 次`;
   }
 
-  updateBestScoreDisplay(loadRecords());
+  // Switches between normal mode and today's daily challenge: reconfigures
+  // the projection (rotation or alternate anchor), resets any in-progress
+  // drawing (the canvas geometry may have just changed size), and updates
+  // every mode-dependent bit of UI.
+  function applyMode(isChallenge) {
+    challengeMode = isChallenge;
+
+    if (isChallenge && todayVariant.type === "rotate") {
+      configureProjection(todayVariant.angle);
+      primaryMarker = { label: "最北端", point: northPoint };
+    } else if (isChallenge) {
+      configureProjection(0);
+      primaryMarker = { label: todayVariant.label, point: todayVariant.point };
+    } else {
+      configureProjection(0);
+      primaryMarker = { label: "最北端", point: northPoint };
+    }
+
+    strokes = [];
+    currentStroke = null;
+    finished = false;
+    lastResult = null;
+    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    resultPanel.hidden = true;
+    undoBtn.hidden = false;
+    clearBtn.hidden = false;
+    finishBtn.hidden = false;
+    downloadCardBtn.hidden = true;
+    retryBtn.hidden = true;
+
+    modeNormalBtn.classList.toggle("active", !isChallenge);
+    modeChallengeBtn.classList.toggle("active", isChallenge);
+    challengeDescEl.hidden = !isChallenge;
+    if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
+    startHintEl.textContent = `📍 起點：${primaryMarker.label}`;
+
+    drawBackground();
+    updateBestScoreDisplay(loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY), isChallenge);
+  }
+
+  modeNormalBtn.addEventListener("click", () => {
+    if (!challengeMode) return;
+    applyMode(false);
+  });
+  modeChallengeBtn.addEventListener("click", () => {
+    if (challengeMode) return;
+    applyMode(true);
+  });
 
   undoBtn.addEventListener("click", () => {
     if (finished) return;
@@ -404,8 +522,9 @@
     return data[(py * CANVAS_W + px) * 4 + 3];
   }
 
-  // 8-way compass label for a screen-space angle (atan2(dy, dx) in degrees),
-  // where +x = east and +y = south (matches this game's projection).
+  // 8-way compass label for a true-geographic angle (atan2(dy, dx) in
+  // degrees, with the map's current rotation already subtracted out), where
+  // +x = east and +y = south before any rotation is applied.
   function compassLabel(angleDeg) {
     const dirs = ["東", "東南", "南", "西南", "西", "西北", "北", "東北"];
     const normalized = ((angleDeg % 360) + 360) % 360;
@@ -441,15 +560,18 @@
       );
     }
 
-    // -- position drift, as a compass direction + distance ----------------
+    // -- position drift, as a true compass direction + distance -----------
+    // (subtract the map's own rotation so this reports real-world direction,
+    // not just "which way on screen", which would be misleading once rotated)
     const dx = player.centroid.x - real.centroid.x;
     const dy = player.centroid.y - real.centroid.y;
     const offsetKm = Math.sqrt(dx * dx + dy * dy) * KM_PER_PX;
     if (offsetKm < 5) {
       lines.push("🧭 位置幾乎完全正確！");
     } else {
-      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-      lines.push(`🧭 你畫的台灣整體偏向${compassLabel(angle)}方，大約偏移了 ${Math.round(offsetKm)} 公里`);
+      const screenAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      const trueAngle = screenAngle - currentRotationDeg;
+      lines.push(`🧭 你畫的台灣整體偏向${compassLabel(trueAngle)}方，大約偏移了 ${Math.round(offsetKm)} 公里`);
     }
 
     // -- did any major city end up outside the drawn shape? ---------------
@@ -625,7 +747,7 @@
 
     ctx.fillStyle = "rgba(234,246,255,0.85)";
     ctx.font = "bold 18px sans-serif";
-    ctx.fillText("🇹🇼 畫出台灣", cardW / 2, y + 18);
+    ctx.fillText(challengeMode ? "🇹🇼 畫出台灣・每日挑戰" : "🇹🇼 畫出台灣", cardW / 2, y + 18);
     y += 34;
 
     ctx.fillStyle = "#ffb703";
@@ -703,12 +825,11 @@
         typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
 
       if (canShareFile) {
+        const shareText = challengeMode
+          ? `我在「每日挑戰」畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`
+          : `我畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`;
         navigator
-          .share({
-            files: [file],
-            title: "畫出台灣",
-            text: `我畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`,
-          })
+          .share({ files: [file], title: "畫出台灣", text: shareText })
           .catch((err) => {
             if (err && err.name === "AbortError") return; // player cancelled the share sheet
             triggerFileDownload(blob, filename); // share failed for some other reason -- fall back
@@ -768,8 +889,9 @@
 
     const scores = computeScores(points);
     const [grade, message] = gradeFor(scores.overall);
-    const { records, isNewBest } = recordAttempt(scores.overall, grade);
-    updateBestScoreDisplay(records);
+    const recordsKey = challengeMode ? CHALLENGE_RECORDS_KEY : RECORDS_KEY;
+    const { records, isNewBest } = recordAttempt(recordsKey, scores.overall, grade);
+    updateBestScoreDisplay(records, challengeMode);
     renderResult(points, scores, grade, message, isNewBest);
     lastResult = { scores, grade, message };
 
@@ -810,4 +932,6 @@
 
     wrap.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  applyMode(false);
 })();

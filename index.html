@@ -10,12 +10,17 @@
   <header>
     <h1>畫出台灣</h1>
     <p class="subtitle tagline">憑記憶畫出台灣本島的輪廓，看看你能拿到幾分</p>
+    <div id="mode-toggle">
+      <button id="mode-normal-btn" class="mode-btn" type="button">一般模式</button>
+      <button id="mode-challenge-btn" class="mode-btn" type="button">🗓️ 每日挑戰</button>
+    </div>
+    <p id="challenge-desc" class="subtitle" hidden></p>
     <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
   </header>
 
   <main>
     <div id="hint-bar">
-      <span class="hint">📍 起點：台灣本島最北端</span>
+      <span id="start-hint" class="hint">📍 起點：台灣本島最北端</span>
       <span class="hint">📏 比例尺已標示在畫布左下角</span>
       <label class="hint toggle-hint">
         <input type="checkbox" id="south-marker-toggle" checked>
