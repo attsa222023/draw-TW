@@ -74,6 +74,18 @@ main {
   border-radius: 999px;
 }
 
+.toggle-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-hint input {
+  cursor: pointer;
+}
+
 #canvas-wrap {
   position: relative;
   width: 100%;

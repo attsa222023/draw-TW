@@ -13,6 +13,10 @@
   for (const p of TAIWAN_OUTLINE) if (p[1] > anchor[1]) anchor = p;
   anchor = { lon: anchor[0], lat: anchor[1] };
 
+  let southPoint = TAIWAN_OUTLINE[0];
+  for (const p of TAIWAN_OUTLINE) if (p[1] < southPoint[1]) southPoint = p;
+  southPoint = { lon: southPoint[0], lat: southPoint[1] };
+
   let latSum = 0;
   for (const p of TAIWAN_OUTLINE) latSum += p[1];
   const REF_LAT = latSum / TAIWAN_OUTLINE.length;
@@ -46,6 +50,28 @@
 
   const REAL_PATH = TAIWAN_OUTLINE.map(([lon, lat]) => toCanvas(lon, lat));
   const ANCHOR_PX = toCanvas(anchor.lon, anchor.lat);
+  const SOUTH_PX = toCanvas(southPoint.lon, southPoint.lat);
+
+  // Whether to show the southernmost-point marker (a second reference
+  // point, on top of the scale bar, to make judging proportions easier).
+  // Persisted so the player's preference sticks across visits.
+  const SOUTH_MARKER_KEY = "drawTaiwanShowSouthMarker";
+  function loadShowSouthMarker() {
+    try {
+      const raw = localStorage.getItem(SOUTH_MARKER_KEY);
+      return raw === null ? true : raw === "1";
+    } catch (e) {
+      return true;
+    }
+  }
+  function saveShowSouthMarker(value) {
+    try {
+      localStorage.setItem(SOUTH_MARKER_KEY, value ? "1" : "0");
+    } catch (e) {
+      /* ignore (private browsing, quota, etc.) */
+    }
+  }
+  let showSouthMarker = loadShowSouthMarker();
 
   // ---- Canvas / DOM setup --------------------------------------------------
   const wrap = document.getElementById("canvas-wrap");
@@ -142,7 +168,40 @@
     bgCtx.font = "bold 13px sans-serif";
     bgCtx.textAlign = "center";
     bgCtx.fillText("起點：最北端", ANCHOR_PX.x, labelY);
+
+    // southernmost-point marker (optional second reference point)
+    if (showSouthMarker) {
+      bgCtx.beginPath();
+      bgCtx.arc(SOUTH_PX.x, SOUTH_PX.y, 7, 0, Math.PI * 2);
+      bgCtx.fillStyle = "#4fd1c5";
+      bgCtx.fill();
+      bgCtx.lineWidth = 2;
+      bgCtx.strokeStyle = "#ffffff";
+      bgCtx.stroke();
+
+      const southLabelBelow = SOUTH_PX.y > CANVAS_H - 40;
+      const southLabelY = southLabelBelow ? SOUTH_PX.y + 30 : SOUTH_PX.y - 14;
+      bgCtx.beginPath();
+      bgCtx.moveTo(SOUTH_PX.x, SOUTH_PX.y + (southLabelBelow ? 7 : -7));
+      bgCtx.lineTo(SOUTH_PX.x, southLabelY + (southLabelBelow ? -12 : 4));
+      bgCtx.strokeStyle = "rgba(255,255,255,0.8)";
+      bgCtx.lineWidth = 1.5;
+      bgCtx.stroke();
+
+      bgCtx.fillStyle = "#ffffff";
+      bgCtx.font = "bold 13px sans-serif";
+      bgCtx.textAlign = "center";
+      bgCtx.fillText("最南端", SOUTH_PX.x, southLabelY);
+    }
   }
+
+  const southMarkerToggle = document.getElementById("south-marker-toggle");
+  southMarkerToggle.checked = showSouthMarker;
+  southMarkerToggle.addEventListener("change", () => {
+    showSouthMarker = southMarkerToggle.checked;
+    saveShowSouthMarker(showSouthMarker);
+    drawBackground();
+  });
 
   drawBackground();
 
