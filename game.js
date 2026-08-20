@@ -938,4 +938,19 @@
   console.log("[debug] before initial applyMode call");
   applyMode(false);
   console.log("[debug] after initial applyMode call");
+
+  window.__debug = {
+    configureProjection,
+    toCanvas,
+    get CANVAS_W() { return CANVAS_W; },
+    get CANVAS_H() { return CANVAS_H; },
+    get REAL_PATH() { return REAL_PATH; },
+    northPoint,
+    southPoint,
+    eastPoint,
+    westPoint,
+    todayVariant,
+    DAILY_VARIANT_POOL,
+    applyMode,
+  };
 })();
