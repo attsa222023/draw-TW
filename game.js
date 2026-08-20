@@ -234,6 +234,10 @@
   const positionScoreValue = document.getElementById("position-score-value");
   const scoreAnalysisEl = document.getElementById("score-analysis");
   const downloadCardBtn = document.getElementById("download-card-btn");
+  const supportsFileShare = typeof navigator.share === "function" && typeof navigator.canShare === "function";
+  if (supportsFileShare) {
+    downloadCardBtn.textContent = "分享成績卡片";
+  }
 
   let lastResult = null; // {scores, grade, message} for the download-card button
 
@@ -611,18 +615,49 @@
     return finalCard;
   }
 
-  function downloadScoreCard(scores, grade, message) {
+  function triggerFileDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // On phones, a plain <a download> saves to the Files/Downloads app, not
+  // Photos -- and there's no direct way to hand it to another app. Where
+  // the Web Share API supports sharing files (iOS Safari, Android Chrome),
+  // use the native share sheet instead, so "save to Photos" / "send via
+  // LINE" etc. are one tap away. Falls back to a normal download wherever
+  // file sharing isn't available (most desktop browsers).
+  function shareOrDownloadScoreCard(scores, grade, message) {
     const card = buildScoreCard(scores, grade, message);
+    const filename = `draw-taiwan-${scores.overall}pct.png`;
+
     card.toBlob((blob) => {
       if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `draw-taiwan-${scores.overall}pct.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+
+      const file = new File([blob], filename, { type: "image/png" });
+      const canShareFile =
+        typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+
+      if (canShareFile) {
+        navigator
+          .share({
+            files: [file],
+            title: "畫出台灣",
+            text: `我畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`,
+          })
+          .catch((err) => {
+            if (err && err.name === "AbortError") return; // player cancelled the share sheet
+            triggerFileDownload(blob, filename); // share failed for some other reason -- fall back
+          });
+        return;
+      }
+
+      triggerFileDownload(blob, filename);
     }, "image/png");
   }
 
@@ -696,7 +731,7 @@
 
   downloadCardBtn.addEventListener("click", () => {
     if (!lastResult) return;
-    downloadScoreCard(lastResult.scores, lastResult.grade, lastResult.message);
+    shareOrDownloadScoreCard(lastResult.scores, lastResult.grade, lastResult.message);
   });
 
   retryBtn.addEventListener("click", () => {
