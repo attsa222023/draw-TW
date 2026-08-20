@@ -383,6 +383,7 @@
   // drawing (the canvas geometry may have just changed size), and updates
   // every mode-dependent bit of UI.
   function applyMode(isChallenge) {
+    console.log("[debug] applyMode start", isChallenge);
     challengeMode = isChallenge;
 
     if (isChallenge && todayVariant.type === "rotate") {
@@ -417,6 +418,7 @@
 
     drawBackground();
     updateBestScoreDisplay(loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY), isChallenge);
+    console.log("[debug] applyMode end", { startHintText: startHintEl.textContent, normalActive: modeNormalBtn.classList.contains("active") });
   }
 
   modeNormalBtn.addEventListener("click", () => {
@@ -933,5 +935,7 @@
     wrap.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+  console.log("[debug] before initial applyMode call");
   applyMode(false);
+  console.log("[debug] after initial applyMode call");
 })();
