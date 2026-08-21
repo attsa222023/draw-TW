@@ -81,6 +81,9 @@
     for (const city of TAIWAN_CITIES) {
       anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat }, coastal: city.coastal });
     }
+    for (const landmark of TAIWAN_LANDMARKS) {
+      anchorPoints.push({ label: landmark.name, point: { lon: landmark.lon, lat: landmark.lat }, coastal: landmark.coastal });
+    }
     for (const a of anchorPoints) pool.push({ type: "anchor", label: a.label, point: a.point, coastal: a.coastal });
     return pool;
   }

@@ -25,6 +25,19 @@ const TAIWAN_CITIES = [
   { name: "新竹市", lon: 120.9647, lat: 24.8138, coastal: true },
 ];
 
+// Well-known coastal towns/ports/landmarks, used only to add variety to
+// daily-challenge anchor points (not part of the sunk-city check above --
+// that's meant to stay a "major cities" joke, not get diluted by small
+// towns most players won't immediately recognize). All confirmed within
+// 5km of TAIWAN_OUTLINE, same measurement as the `coastal` field above.
+const TAIWAN_LANDMARKS = [
+  { name: "淡水", lon: 121.4394, lat: 25.1687, coastal: true },
+  { name: "白沙屯", lon: 120.6847, lat: 24.6296, coastal: true },
+  { name: "台中港", lon: 120.5236, lat: 24.2823, coastal: true },
+  { name: "鹿港", lon: 120.4342, lat: 24.0565, coastal: true },
+  { name: "蘇澳", lon: 121.8544, lat: 24.5958, coastal: true },
+];
+
 // Reference areas (km²) for turning a raw area difference into something
 // tangible ("相當於 N 個台北市"), sorted ascending so the nearest-by-ratio
 // match reads naturally regardless of magnitude.
