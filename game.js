@@ -106,6 +106,24 @@
   const drawCtx = drawCanvas.getContext("2d");
   const resultCtx = resultCanvas.getContext("2d");
   const startHintEl = document.getElementById("start-hint");
+  const rotateHintEl = document.getElementById("rotate-hint");
+
+  // Below this viewport width the compact mobile layout (see style.css)
+  // sizes the canvas by height, not width -- matches that CSS breakpoint.
+  const MOBILE_BREAKPOINT_PX = 640;
+
+  // A landscape-shaped daily-challenge map (after a rotation close to 90°)
+  // squeezed into that height budget on a portrait phone ends up quite
+  // small; suggesting a rotate to landscape lets it use the full screen
+  // width instead. Re-checked on resize/orientationchange so the hint
+  // disappears the moment the player actually rotates.
+  function updateRotateHint() {
+    const isMobileLayout = window.innerWidth <= MOBILE_BREAKPOINT_PX;
+    const mapIsLandscape = CANVAS_W > CANVAS_H;
+    rotateHintEl.hidden = !(isMobileLayout && mapIsLandscape);
+  }
+  window.addEventListener("resize", updateRotateHint);
+  window.addEventListener("orientationchange", updateRotateHint);
 
   // Mutable per-mode projection state, recomputed by configureProjection()
   // whenever the rotation changes (normal mode vs. a "rotate" daily variant).
@@ -140,6 +158,7 @@
       c.height = CANVAS_H;
     }
     wrap.style.aspectRatio = `${CANVAS_W} / ${CANVAS_H}`;
+    wrap.style.setProperty("--map-ratio", CANVAS_W / CANVAS_H);
 
     REAL_PATH = TAIWAN_OUTLINE.map(([lon, lat]) => toCanvas(lon, lat));
   }
@@ -439,6 +458,7 @@
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
     startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
+    updateRotateHint();
 
     drawBackground();
     updateBestScoreDisplay(loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY), isChallenge);

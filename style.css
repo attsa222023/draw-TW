@@ -145,6 +145,24 @@ main {
   pointer-events: none;
 }
 
+/* Suggests rotating the phone when today's challenge map is landscape-
+   shaped but the phone is held in portrait -- overlaid on the canvas
+   (not in normal flow) so it doesn't eat into the height budget, and
+   non-interactive so it never blocks drawing underneath it. */
+#rotate-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffffff;
+  font-size: 0.78rem;
+  text-align: center;
+  pointer-events: none;
+}
+
 #controls {
   display: flex;
   gap: 10px;
@@ -377,12 +395,18 @@ button:active {
     padding: 3px 8px;
   }
 
+  /* Sized to fit within the height budget without ever distorting: width
+     is the smaller of "100% of the container" and "the height budget
+     scaled by the map's own aspect ratio" (--map-ratio, set in JS whenever
+     the projection is (re)configured), then height is left to derive from
+     width via aspect-ratio. A landscape-shaped daily-challenge map (after
+     a ~90° rotation) still shrinks to fit, correctly proportioned, instead
+     of being squashed by width and height fighting each other. */
   #canvas-wrap {
-    width: auto;
-    max-width: 100%;
-    height: calc(100vh - 190px);
-    height: calc(100dvh - 190px);
-    min-height: 260px;
+    width: min(100%, calc((100vh - 190px) * var(--map-ratio, 0.6)));
+    width: min(100%, calc((100dvh - 190px) * var(--map-ratio, 0.6)));
+    height: auto;
+    min-height: 200px;
   }
 
   #controls {
