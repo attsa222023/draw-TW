@@ -441,10 +441,16 @@
     bgCtx.textAlign = "left";
     bgCtx.fillText(`${SCALE_BAR_KM} 公里`, barX, barY - 12);
 
-    // primary reference-point marker (north normally, or today's variant)
-    const primaryPx = toCanvas(primaryMarker.point.lon, primaryMarker.point.lat);
-    const primaryRole = primaryMarker.coastal ? "起點" : "參考點";
-    drawPointMarker(primaryPx, "#ffb703", `${primaryRole}：${primaryMarker.label}`, primaryMarker.coastal);
+    // primary reference-point marker (north normally, or today's variant) --
+    // skipped on a river/mountain day, since the whole point of that
+    // challenge is navigating by the overlay alone, without the usual
+    // start-point crutch (otherwise it'd have strictly more hints than
+    // normal mode, not fewer, once the extra overlay is added on top)
+    if (!activeFeature) {
+      const primaryPx = toCanvas(primaryMarker.point.lon, primaryMarker.point.lat);
+      const primaryRole = primaryMarker.coastal ? "起點" : "參考點";
+      drawPointMarker(primaryPx, "#ffb703", `${primaryRole}：${primaryMarker.label}`, primaryMarker.coastal);
+    }
 
     // optional secondary south marker -- skipped if it would just
     // duplicate the primary marker (i.e. today's variant IS south)
@@ -618,7 +624,12 @@
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
     qaCycleBtn.hidden = !isChallenge; // TEMP QA TOOL -- remove with the rest of this block
-    startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
+    // no start-point hint to show on a river/mountain day -- the marker
+    // itself is skipped in drawBackground() for the same reason
+    startHintEl.hidden = !!activeFeature;
+    if (!activeFeature) {
+      startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
+    }
     updateRotateHint();
 
     drawBackground();
