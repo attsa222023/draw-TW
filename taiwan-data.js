@@ -6,23 +6,22 @@
 // drawing actually covers them ("did Taichung sink into the sea?"), and as
 // daily-challenge reference points. Roughly ordered clockwise from the north.
 //
-// `coastal` marks whether the coordinate sits close to the actual outline
-// (measured: distance from each city to the nearest point on TAIWAN_OUTLINE,
-// in km -- 花蓮 0.6, 台東 1.1, 基隆 2.1, 高雄 3, 新竹 5.7, 台南 8.6, then a
-// clear gap to 台北 16.9, 台中 19.9, 屏東 20.3, 嘉義 29.6). Inland cities
-// don't make sense framed as a boundary "起點" (start point) -- the daily
-// challenge shows them as an internal "參考點" (reference point) instead.
+// Whether each one gets framed as a boundary "起點" vs. an internal "參考點"
+// isn't stored here -- game.js computes it from actual distance to
+// TAIWAN_OUTLINE vs. the marker's own rendered radius, so a point only
+// counts as "起點" if its marker would actually touch the coastline once
+// drawn, not just be "somewhat close" by an arbitrary km cutoff.
 const TAIWAN_CITIES = [
-  { name: "基隆市", lon: 121.7392, lat: 25.1276, coastal: true },
-  { name: "台北市", lon: 121.5654, lat: 25.033, coastal: false },
-  { name: "花蓮市", lon: 121.6068, lat: 23.9871, coastal: true },
-  { name: "台東市", lon: 121.1444, lat: 22.7583, coastal: true },
-  { name: "高雄市", lon: 120.302, lat: 22.6273, coastal: true },
-  { name: "屏東市", lon: 120.4818, lat: 22.6759, coastal: false },
-  { name: "台南市", lon: 120.2513, lat: 22.9908, coastal: true },
-  { name: "嘉義市", lon: 120.4473, lat: 23.4801, coastal: false },
-  { name: "台中市", lon: 120.6736, lat: 24.1626, coastal: false },
-  { name: "新竹市", lon: 120.9647, lat: 24.8138, coastal: true },
+  { name: "基隆市", lon: 121.7392, lat: 25.1276 },
+  { name: "台北市", lon: 121.5654, lat: 25.033 },
+  { name: "花蓮市", lon: 121.6068, lat: 23.9871 },
+  { name: "台東市", lon: 121.1444, lat: 22.7583 },
+  { name: "高雄市", lon: 120.302, lat: 22.6273 },
+  { name: "屏東市", lon: 120.4818, lat: 22.6759 },
+  { name: "台南市", lon: 120.2513, lat: 22.9908 },
+  { name: "嘉義市", lon: 120.4473, lat: 23.4801 },
+  { name: "台中市", lon: 120.6736, lat: 24.1626 },
+  { name: "新竹市", lon: 120.9647, lat: 24.8138 },
 ];
 
 // Well-known towns/ports/peaks/lakes/offshore islands, used only to add
@@ -30,54 +29,52 @@ const TAIWAN_CITIES = [
 // above -- that's meant to stay a "major cities" joke, not get diluted by
 // names most players won't immediately recognize).
 //
-// `coastal` means "actually sits on the boundary being traced", same field
-// as TAIWAN_CITIES: true for the handful within ~5km of TAIWAN_OUTLINE
-// (framed as a boundary "起點"), false for everything else -- inland peaks/
-// lakes AND offshore islands alike get framed as an internal "參考點"
-// instead, since neither actually sits on the mainland coastline (an
-// island a few km offshore is just as much "not the boundary" as a
-// mountain 50km inland, regardless of which direction it's off in).
+// Same as TAIWAN_CITIES, "起點" vs "參考點" is computed in game.js from
+// actual rendered distance to the coastline, not stored here -- inland
+// peaks/lakes and offshore islands alike naturally end up "參考點" since
+// neither sits on the mainland coastline being traced, regardless of which
+// direction (inward or out to sea) they're off in.
 //
 // Offshore points can fall outside the outline's own bounding box --
 // configureProjection()'s `extraPoints` grows the canvas just enough to
 // fit whichever one is active that day (e.g. 蘭嶼 is ~68km out).
 const TAIWAN_LANDMARKS = [
-  { name: "淡水", lon: 121.4394, lat: 25.1687, coastal: true },
-  { name: "白沙屯", lon: 120.6847, lat: 24.6296, coastal: true },
-  { name: "台中港", lon: 120.5236, lat: 24.2823, coastal: true },
-  { name: "鹿港", lon: 120.4342, lat: 24.0565, coastal: true },
-  { name: "蘇澳", lon: 121.8544, lat: 24.5958, coastal: true },
-  { name: "野柳", lon: 121.6897, lat: 25.2058, coastal: true },
-  { name: "金山", lon: 121.6367, lat: 25.2219, coastal: true },
-  { name: "福隆", lon: 121.9436, lat: 25.0169, coastal: true },
-  { name: "通霄", lon: 120.6789, lat: 24.4897, coastal: true },
-  { name: "布袋", lon: 120.1591, lat: 23.3808, coastal: true },
-  { name: "安平", lon: 120.1611, lat: 22.9958, coastal: true },
-  { name: "東港", lon: 120.45, lat: 22.4667, coastal: true },
-  { name: "墾丁", lon: 120.7972, lat: 21.9469, coastal: true },
-  { name: "三仙台", lon: 121.4067, lat: 23.1275, coastal: true },
-  { name: "石梯坪", lon: 121.4736, lat: 23.3567, coastal: true },
-  { name: "太魯閣", lon: 121.6215, lat: 24.1591, coastal: true },
-  { name: "九份", lon: 121.8447, lat: 25.1097, coastal: true },
-  { name: "台北101", lon: 121.5645, lat: 25.0339, coastal: false },
-  { name: "玉山主峰", lon: 120.9598, lat: 23.4707, coastal: false },
-  { name: "日月潭", lon: 120.915, lat: 23.8514, coastal: false },
-  { name: "故宮南院", lon: 120.3193, lat: 23.4495, coastal: false },
-  { name: "合歡山", lon: 121.2792, lat: 24.1419, coastal: false },
-  { name: "阿里山", lon: 120.8022, lat: 23.509, coastal: false },
-  { name: "石門水庫", lon: 121.2333, lat: 24.8025, coastal: false },
-  { name: "龜山島", lon: 121.9203, lat: 24.8378, coastal: false },
-  { name: "小琉球", lon: 120.3778, lat: 22.3499, coastal: false },
-  { name: "綠島", lon: 121.4906, lat: 22.6602, coastal: false },
-  { name: "蘭嶼", lon: 121.5502, lat: 22.0457, coastal: false },
-  { name: "陽明山", lon: 121.5597, lat: 25.1633, coastal: true },
-  { name: "礁溪", lon: 121.7717, lat: 24.8283, coastal: true },
-  { name: "知本", lon: 121.0378, lat: 22.705, coastal: true },
-  { name: "恆春", lon: 120.7444, lat: 22.0025, coastal: true },
-  { name: "三峽", lon: 121.3686, lat: 24.9342, coastal: false },
-  { name: "內灣", lon: 121.1583, lat: 24.6874, coastal: false },
-  { name: "集集", lon: 120.7847, lat: 23.8275, coastal: false },
-  { name: "北港朝天宮", lon: 120.3033, lat: 23.5686, coastal: false },
+  { name: "淡水", lon: 121.4394, lat: 25.1687 },
+  { name: "白沙屯", lon: 120.6847, lat: 24.6296 },
+  { name: "台中港", lon: 120.5236, lat: 24.2823 },
+  { name: "鹿港", lon: 120.4342, lat: 24.0565 },
+  { name: "蘇澳", lon: 121.8544, lat: 24.5958 },
+  { name: "野柳", lon: 121.6897, lat: 25.2058 },
+  { name: "金山", lon: 121.6367, lat: 25.2219 },
+  { name: "福隆", lon: 121.9436, lat: 25.0169 },
+  { name: "通霄", lon: 120.6789, lat: 24.4897 },
+  { name: "布袋", lon: 120.1591, lat: 23.3808 },
+  { name: "安平", lon: 120.1611, lat: 22.9958 },
+  { name: "東港", lon: 120.45, lat: 22.4667 },
+  { name: "墾丁", lon: 120.7972, lat: 21.9469 },
+  { name: "三仙台", lon: 121.4067, lat: 23.1275 },
+  { name: "石梯坪", lon: 121.4736, lat: 23.3567 },
+  { name: "太魯閣", lon: 121.6215, lat: 24.1591 },
+  { name: "九份", lon: 121.8447, lat: 25.1097 },
+  { name: "台北101", lon: 121.5645, lat: 25.0339 },
+  { name: "玉山主峰", lon: 120.9598, lat: 23.4707 },
+  { name: "日月潭", lon: 120.915, lat: 23.8514 },
+  { name: "故宮南院", lon: 120.3193, lat: 23.4495 },
+  { name: "合歡山", lon: 121.2792, lat: 24.1419 },
+  { name: "阿里山", lon: 120.8022, lat: 23.509 },
+  { name: "石門水庫", lon: 121.2333, lat: 24.8025 },
+  { name: "龜山島", lon: 121.9203, lat: 24.8378 },
+  { name: "小琉球", lon: 120.3778, lat: 22.3499 },
+  { name: "綠島", lon: 121.4906, lat: 22.6602 },
+  { name: "蘭嶼", lon: 121.5502, lat: 22.0457 },
+  { name: "陽明山", lon: 121.5597, lat: 25.1633 },
+  { name: "礁溪", lon: 121.7717, lat: 24.8283 },
+  { name: "知本", lon: 121.0378, lat: 22.705 },
+  { name: "恆春", lon: 120.7444, lat: 22.0025 },
+  { name: "三峽", lon: 121.3686, lat: 24.9342 },
+  { name: "內灣", lon: 121.1583, lat: 24.6874 },
+  { name: "集集", lon: 120.7847, lat: 23.8275 },
+  { name: "北港朝天宮", lon: 120.3033, lat: 23.5686 },
 ];
 
 // Reference areas (km²) for turning a raw area difference into something

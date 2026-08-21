@@ -41,6 +41,44 @@
     return { x: pt.x * cos - pt.y * sin, y: pt.x * sin + pt.y * cos };
   }
 
+  // Whether a point is close enough to TAIWAN_OUTLINE to visually read as
+  // sitting ON the coastline once drawn, rather than as a dot floating
+  // nearby -- used to decide whether a daily-challenge reference point gets
+  // framed as a boundary "起點" or an internal "參考點". Tied directly to
+  // what actually renders (the marker's own radius) rather than a
+  // hand-picked km cutoff, so it can't drift out of sync with the art, and
+  // any landmark added to taiwan-data.js later is classified automatically.
+  const MARKER_RADIUS_PX = 7;
+  const COASTAL_THRESHOLD_KM = MARKER_RADIUS_PX * KM_PER_PX;
+
+  function distToSegmentKm(p, a, b) {
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const apx = p.x - a.x;
+    const apy = p.y - a.y;
+    const lenSq = abx * abx + aby * aby;
+    let t = lenSq === 0 ? 0 : (apx * abx + apy * aby) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const dx = p.x - (a.x + t * abx);
+    const dy = p.y - (a.y + t * aby);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function distanceToOutlineKm(lon, lat) {
+    const p = projectKm(lon, lat);
+    let min = Infinity;
+    for (let i = 0; i < TAIWAN_OUTLINE.length - 1; i++) {
+      const a = projectKm(TAIWAN_OUTLINE[i][0], TAIWAN_OUTLINE[i][1]);
+      const b = projectKm(TAIWAN_OUTLINE[i + 1][0], TAIWAN_OUTLINE[i + 1][1]);
+      min = Math.min(min, distToSegmentKm(p, a, b));
+    }
+    return min;
+  }
+
+  function isCoastal(lon, lat) {
+    return distanceToOutlineKm(lon, lat) <= COASTAL_THRESHOLD_KM;
+  }
+
   // ---- Daily challenge --------------------------------------------------
   // Deterministic per-day variant: either the map is rotated by a fixed
   // angle (north no longer up), or the labeled reference point is swapped
@@ -71,20 +109,20 @@
 
   function buildDailyVariantPool() {
     const pool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
-    // north/south/east/west are always exactly on the outline (they're its
-    // extreme points), so always eligible as a boundary "起點"
     const anchorPoints = [
-      { label: "最南端", point: southPoint, coastal: true },
-      { label: "最東端", point: eastPoint, coastal: true },
-      { label: "最西端", point: westPoint, coastal: true },
+      { label: "最南端", point: southPoint },
+      { label: "最東端", point: eastPoint },
+      { label: "最西端", point: westPoint },
     ];
     for (const city of TAIWAN_CITIES) {
-      anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat }, coastal: city.coastal });
+      anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat } });
     }
     for (const landmark of TAIWAN_LANDMARKS) {
-      anchorPoints.push({ label: landmark.name, point: { lon: landmark.lon, lat: landmark.lat }, coastal: landmark.coastal });
+      anchorPoints.push({ label: landmark.name, point: { lon: landmark.lon, lat: landmark.lat } });
     }
-    for (const a of anchorPoints) pool.push({ type: "anchor", label: a.label, point: a.point, coastal: a.coastal });
+    for (const a of anchorPoints) {
+      pool.push({ type: "anchor", label: a.label, point: a.point, coastal: isCoastal(a.point.lon, a.point.lat) });
+    }
     return pool;
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
