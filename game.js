@@ -71,22 +71,27 @@
 
   function buildDailyVariantPool() {
     const pool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
+    // north/south/east/west are always exactly on the outline (they're its
+    // extreme points), so always eligible as a boundary "起點"
     const anchorPoints = [
-      { label: "最南端", point: southPoint },
-      { label: "最東端", point: eastPoint },
-      { label: "最西端", point: westPoint },
+      { label: "最南端", point: southPoint, coastal: true },
+      { label: "最東端", point: eastPoint, coastal: true },
+      { label: "最西端", point: westPoint, coastal: true },
     ];
-    for (const city of TAIWAN_CITIES) anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat } });
-    for (const a of anchorPoints) pool.push({ type: "anchor", label: a.label, point: a.point });
+    for (const city of TAIWAN_CITIES) {
+      anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat }, coastal: city.coastal });
+    }
+    for (const a of anchorPoints) pool.push({ type: "anchor", label: a.label, point: a.point, coastal: a.coastal });
     return pool;
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
   const todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
 
   function describeTodayVariant() {
-    return todayVariant.type === "rotate"
-      ? `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`
-      : `起點換成「${todayVariant.label}」，不是最北端`;
+    if (todayVariant.type === "rotate") return `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`;
+    return todayVariant.coastal
+      ? `起點換成「${todayVariant.label}」，不是最北端`
+      : `標示「${todayVariant.label}」在島內的參考位置，不是起點`;
   }
 
   // ---- Canvas / DOM setup --------------------------------------------------
@@ -157,15 +162,31 @@
   }
   let showSouthMarker = loadShowSouthMarker();
 
-  // Today's primary "起點" reference point/label -- the true north tip in
-  // normal mode and on "rotate" challenge days, or the daily alternate
-  // point on "anchor" challenge days. Set by applyMode().
-  let primaryMarker = { label: "最北端", point: northPoint };
+  // Today's primary reference point/label -- the true north tip in normal
+  // mode and on "rotate" challenge days, or the daily alternate point on
+  // "anchor" challenge days. `coastal: true` points sit on (or very near)
+  // the actual outline and are framed as "起點" (a boundary start point);
+  // inland cities are framed as "參考點" (an internal reference point)
+  // instead, since labeling e.g. Taipei -- ~17km from the coast -- as a
+  // start point would look wrong sitting in the middle of the shape. Set
+  // by applyMode().
+  let primaryMarker = { label: "最北端", point: northPoint, coastal: true };
   let challengeMode = false;
 
-  function drawPointMarker(px, color, label) {
+  function drawPointMarker(px, color, label, coastal) {
     bgCtx.beginPath();
-    bgCtx.arc(px.x, px.y, 7, 0, Math.PI * 2);
+    if (coastal) {
+      bgCtx.arc(px.x, px.y, 7, 0, Math.PI * 2);
+    } else {
+      // diamond, so an inland reference point reads as visually distinct
+      // from a boundary start point at a glance, not just via the label
+      const r = 8;
+      bgCtx.moveTo(px.x, px.y - r);
+      bgCtx.lineTo(px.x + r, px.y);
+      bgCtx.lineTo(px.x, px.y + r);
+      bgCtx.lineTo(px.x - r, px.y);
+      bgCtx.closePath();
+    }
     bgCtx.fillStyle = color;
     bgCtx.fill();
     bgCtx.lineWidth = 2;
@@ -254,12 +275,13 @@
 
     // primary reference-point marker (north normally, or today's variant)
     const primaryPx = toCanvas(primaryMarker.point.lon, primaryMarker.point.lat);
-    drawPointMarker(primaryPx, "#ffb703", `起點：${primaryMarker.label}`);
+    const primaryRole = primaryMarker.coastal ? "起點" : "參考點";
+    drawPointMarker(primaryPx, "#ffb703", `${primaryRole}：${primaryMarker.label}`, primaryMarker.coastal);
 
     // optional secondary south marker -- skipped if it would just
     // duplicate the primary marker (i.e. today's variant IS south)
     if (showSouthMarker && primaryMarker.point !== southPoint) {
-      drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", "最南端");
+      drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", "最南端", true);
     }
   }
 
@@ -387,13 +409,13 @@
 
     if (isChallenge && todayVariant.type === "rotate") {
       configureProjection(todayVariant.angle);
-      primaryMarker = { label: "最北端", point: northPoint };
+      primaryMarker = { label: "最北端", point: northPoint, coastal: true };
     } else if (isChallenge) {
       configureProjection(0);
-      primaryMarker = { label: todayVariant.label, point: todayVariant.point };
+      primaryMarker = { label: todayVariant.label, point: todayVariant.point, coastal: todayVariant.coastal };
     } else {
       configureProjection(0);
-      primaryMarker = { label: "最北端", point: northPoint };
+      primaryMarker = { label: "最北端", point: northPoint, coastal: true };
     }
 
     strokes = [];
@@ -413,7 +435,7 @@
     modeChallengeBtn.classList.toggle("active", isChallenge);
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
-    startHintEl.textContent = `📍 起點：${primaryMarker.label}`;
+    startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
 
     drawBackground();
     updateBestScoreDisplay(loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY), isChallenge);

@@ -3,19 +3,26 @@
 // via https://github.com/datasets/geo-countries — the largest ring of Taiwan's
 // MultiPolygon (main island only; outlying islands like Penghu/Kinmen/Matsu excluded).
 // Major cities' downtown coordinates, used to check whether the player's
-// drawing actually covers them ("did Taichung sink into the sea?").
-// Roughly ordered clockwise from the north.
+// drawing actually covers them ("did Taichung sink into the sea?"), and as
+// daily-challenge reference points. Roughly ordered clockwise from the north.
+//
+// `coastal` marks whether the coordinate sits close to the actual outline
+// (measured: distance from each city to the nearest point on TAIWAN_OUTLINE,
+// in km -- 花蓮 0.6, 台東 1.1, 基隆 2.1, 高雄 3, 新竹 5.7, 台南 8.6, then a
+// clear gap to 台北 16.9, 台中 19.9, 屏東 20.3, 嘉義 29.6). Inland cities
+// don't make sense framed as a boundary "起點" (start point) -- the daily
+// challenge shows them as an internal "參考點" (reference point) instead.
 const TAIWAN_CITIES = [
-  { name: "基隆市", lon: 121.7392, lat: 25.1276 },
-  { name: "台北市", lon: 121.5654, lat: 25.033 },
-  { name: "花蓮市", lon: 121.6068, lat: 23.9871 },
-  { name: "台東市", lon: 121.1444, lat: 22.7583 },
-  { name: "高雄市", lon: 120.302, lat: 22.6273 },
-  { name: "屏東市", lon: 120.4818, lat: 22.6759 },
-  { name: "台南市", lon: 120.2513, lat: 22.9908 },
-  { name: "嘉義市", lon: 120.4473, lat: 23.4801 },
-  { name: "台中市", lon: 120.6736, lat: 24.1626 },
-  { name: "新竹市", lon: 120.9647, lat: 24.8138 },
+  { name: "基隆市", lon: 121.7392, lat: 25.1276, coastal: true },
+  { name: "台北市", lon: 121.5654, lat: 25.033, coastal: false },
+  { name: "花蓮市", lon: 121.6068, lat: 23.9871, coastal: true },
+  { name: "台東市", lon: 121.1444, lat: 22.7583, coastal: true },
+  { name: "高雄市", lon: 120.302, lat: 22.6273, coastal: true },
+  { name: "屏東市", lon: 120.4818, lat: 22.6759, coastal: false },
+  { name: "台南市", lon: 120.2513, lat: 22.9908, coastal: true },
+  { name: "嘉義市", lon: 120.4473, lat: 23.4801, coastal: false },
+  { name: "台中市", lon: 120.6736, lat: 24.1626, coastal: false },
+  { name: "新竹市", lon: 120.9647, lat: 24.8138, coastal: true },
 ];
 
 // Reference areas (km²) for turning a raw area difference into something
