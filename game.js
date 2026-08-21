@@ -21,6 +21,15 @@
   const eastPoint = extremePoint((p, best) => p[0] > best[0]);
   const westPoint = extremePoint((p, best) => p[0] < best[0]);
 
+  // Named landmarks at each extreme, verified against real coordinates
+  // (within ~1-5km, consistent with this outline data's simplification):
+  // 富貴角 25.2975°N 121.5378°E, 鵝鑾鼻 21.9018°N 120.8514°E, 三貂角
+  // 25.0019°N 122.0057°E, 國聖港燈塔 23.1008°N 120.0358°E.
+  const NORTH_LABEL = "最北端(富貴角)";
+  const SOUTH_LABEL = "最南端(鵝鑾鼻)";
+  const EAST_LABEL = "最東端(三貂角)";
+  const WEST_LABEL = "最西端(國聖港)";
+
   let latSum = 0;
   for (const p of TAIWAN_OUTLINE) latSum += p[1];
   const REF_LAT = latSum / TAIWAN_OUTLINE.length;
@@ -110,9 +119,9 @@
   function buildDailyVariantPool() {
     const pool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
     const anchorPoints = [
-      { label: "最南端", point: southPoint },
-      { label: "最東端", point: eastPoint },
-      { label: "最西端", point: westPoint },
+      { label: SOUTH_LABEL, point: southPoint },
+      { label: EAST_LABEL, point: eastPoint },
+      { label: WEST_LABEL, point: westPoint },
     ];
     for (const city of TAIWAN_CITIES) {
       anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat } });
@@ -240,7 +249,7 @@
   // instead, since labeling e.g. Taipei -- ~17km from the coast -- as a
   // start point would look wrong sitting in the middle of the shape. Set
   // by applyMode().
-  let primaryMarker = { label: "最北端", point: northPoint, coastal: true };
+  let primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
   let challengeMode = false;
 
   function drawPointMarker(px, color, label, coastal) {
@@ -351,7 +360,7 @@
     // optional secondary south marker -- skipped if it would just
     // duplicate the primary marker (i.e. today's variant IS south)
     if (showSouthMarker && primaryMarker.point !== southPoint) {
-      drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", "最南端", true);
+      drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", SOUTH_LABEL, true);
     }
   }
 
@@ -480,13 +489,13 @@
 
     if (isChallenge && todayVariant.type === "rotate") {
       configureProjection(todayVariant.angle);
-      primaryMarker = { label: "最北端", point: northPoint, coastal: true };
+      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
     } else if (isChallenge) {
       configureProjection(0, [todayVariant.point]);
       primaryMarker = { label: todayVariant.label, point: todayVariant.point, coastal: todayVariant.coastal };
     } else {
       configureProjection(0);
-      primaryMarker = { label: "最北端", point: northPoint, coastal: true };
+      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
     }
 
     strokes = [];
