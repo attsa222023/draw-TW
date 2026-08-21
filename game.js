@@ -88,7 +88,9 @@
     return pool;
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
-  const todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
+  // `let` (not `const`) only so the TEMP QA TOOL below can override it for
+  // review purposes; nothing else in the app ever reassigns this.
+  let todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
 
   function describeTodayVariant() {
     if (todayVariant.type === "rotate") return `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`;
@@ -418,6 +420,7 @@
   const modeNormalBtn = document.getElementById("mode-normal-btn");
   const modeChallengeBtn = document.getElementById("mode-challenge-btn");
   const challengeDescEl = document.getElementById("challenge-desc");
+  const qaCycleBtn = document.getElementById("qa-cycle-btn"); // TEMP QA TOOL
 
   let lastResult = null; // {scores, grade, message} for the download-card button
 
@@ -465,6 +468,7 @@
     modeChallengeBtn.classList.toggle("active", isChallenge);
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
+    qaCycleBtn.hidden = !isChallenge; // TEMP QA TOOL -- remove with the rest of this block
     startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
     updateRotateHint();
 
@@ -479,6 +483,19 @@
   modeChallengeBtn.addEventListener("click", () => {
     if (challengeMode) return;
     applyMode(true);
+  });
+
+  // TEMP QA TOOL -- steps through every entry in DAILY_VARIANT_POOL in
+  // order (not random, so a full pass is guaranteed to hit each one
+  // exactly once) so the pool can be reviewed without waiting for actual
+  // calendar days. Remove this block, the button in index.html, and its
+  // CSS in style.css once the pool's been checked over.
+  let qaCycleIndex = -1;
+  qaCycleBtn.addEventListener("click", () => {
+    qaCycleIndex = (qaCycleIndex + 1) % DAILY_VARIANT_POOL.length;
+    todayVariant = DAILY_VARIANT_POOL[qaCycleIndex];
+    applyMode(true);
+    qaCycleBtn.textContent = `🔀 測試：換下一個 (${qaCycleIndex + 1}/${DAILY_VARIANT_POOL.length})`;
   });
 
   undoBtn.addEventListener("click", () => {
