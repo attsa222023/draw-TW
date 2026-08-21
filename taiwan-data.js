@@ -76,6 +76,7 @@ const TAIWAN_LANDMARKS = [
   { name: "集集", lon: 120.7847, lat: 23.8275 },
   { name: "北港朝天宮", lon: 120.3033, lat: 23.5686 },
   { name: "桃園機場", lon: 121.2342, lat: 25.0797 },
+  { name: "曾文水庫", lon: 120.4333, lat: 23.2167 },
 ];
 
 // Reference areas (km²) for turning a raw area difference into something
