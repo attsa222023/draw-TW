@@ -25,11 +25,22 @@ const TAIWAN_CITIES = [
   { name: "新竹市", lon: 120.9647, lat: 24.8138, coastal: true },
 ];
 
-// Well-known coastal towns/ports/landmarks, used only to add variety to
-// daily-challenge anchor points (not part of the sunk-city check above --
-// that's meant to stay a "major cities" joke, not get diluted by small
-// towns most players won't immediately recognize). All confirmed within
-// 5km of TAIWAN_OUTLINE, same measurement as the `coastal` field above.
+// Well-known towns/ports/peaks/lakes/offshore islands, used only to add
+// variety to daily-challenge anchor points (not part of the sunk-city check
+// above -- that's meant to stay a "major cities" joke, not get diluted by
+// names most players won't immediately recognize).
+//
+// `coastal` means "actually sits on the boundary being traced", same field
+// as TAIWAN_CITIES: true for the handful within ~5km of TAIWAN_OUTLINE
+// (framed as a boundary "起點"), false for everything else -- inland peaks/
+// lakes AND offshore islands alike get framed as an internal "參考點"
+// instead, since neither actually sits on the mainland coastline (an
+// island a few km offshore is just as much "not the boundary" as a
+// mountain 50km inland, regardless of which direction it's off in).
+//
+// Offshore points can fall outside the outline's own bounding box --
+// configureProjection()'s `extraPoints` grows the canvas just enough to
+// fit whichever one is active that day (e.g. 蘭嶼 is ~68km out).
 const TAIWAN_LANDMARKS = [
   { name: "淡水", lon: 121.4394, lat: 25.1687, coastal: true },
   { name: "白沙屯", lon: 120.6847, lat: 24.6296, coastal: true },
@@ -46,6 +57,19 @@ const TAIWAN_LANDMARKS = [
   { name: "墾丁", lon: 120.7972, lat: 21.9469, coastal: true },
   { name: "三仙台", lon: 121.4067, lat: 23.1275, coastal: true },
   { name: "石梯坪", lon: 121.4736, lat: 23.3567, coastal: true },
+  { name: "太魯閣", lon: 121.6215, lat: 24.1591, coastal: true },
+  { name: "九份", lon: 121.8447, lat: 25.1097, coastal: true },
+  { name: "台北101", lon: 121.5645, lat: 25.0339, coastal: false },
+  { name: "玉山主峰", lon: 120.9598, lat: 23.4707, coastal: false },
+  { name: "日月潭", lon: 120.915, lat: 23.8514, coastal: false },
+  { name: "故宮南院", lon: 120.3193, lat: 23.4495, coastal: false },
+  { name: "合歡山", lon: 121.2792, lat: 24.1419, coastal: false },
+  { name: "阿里山", lon: 120.8022, lat: 23.509, coastal: false },
+  { name: "石門水庫", lon: 121.2333, lat: 24.8025, coastal: false },
+  { name: "龜山島", lon: 121.9203, lat: 24.8378, coastal: false },
+  { name: "小琉球", lon: 120.3778, lat: 22.3499, coastal: false },
+  { name: "綠島", lon: 121.4906, lat: 22.6602, coastal: false },
+  { name: "蘭嶼", lon: 121.5502, lat: 22.0457, coastal: false },
 ];
 
 // Reference areas (km²) for turning a raw area difference into something

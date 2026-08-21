@@ -136,13 +136,21 @@
     return { x: originPxX + rotated.x, y: originPxY + rotated.y };
   }
 
-  function configureProjection(rotationDeg) {
+  // `extraPoints` ({lon, lat}[]) are folded into the bounding box alongside
+  // the outline -- a no-op for on-island points (already inside), but lets
+  // an offshore-island anchor variant (e.g. 蘭嶼, ~68km out) grow the canvas
+  // just enough to actually show its marker, instead of it landing off the
+  // edge past the normal ~22km padding.
+  function configureProjection(rotationDeg, extraPoints) {
     currentRotationDeg = rotationDeg || 0;
 
-    const rotatedPts = TAIWAN_OUTLINE.map(([lon, lat]) => {
+    function project(lon, lat) {
       const km = projectKm(lon, lat);
       return rotateXY({ x: km.x / KM_PER_PX, y: km.y / KM_PER_PX }, currentRotationDeg);
-    });
+    }
+    const rotatedPts = TAIWAN_OUTLINE.map(([lon, lat]) => project(lon, lat));
+    for (const p of extraPoints || []) rotatedPts.push(project(p.lon, p.lat));
+
     const minX = Math.min(...rotatedPts.map((p) => p.x));
     const maxX = Math.max(...rotatedPts.map((p) => p.x));
     const minY = Math.min(...rotatedPts.map((p) => p.y));
@@ -433,7 +441,7 @@
       configureProjection(todayVariant.angle);
       primaryMarker = { label: "最北端", point: northPoint, coastal: true };
     } else if (isChallenge) {
-      configureProjection(0);
+      configureProjection(0, [todayVariant.point]);
       primaryMarker = { label: todayVariant.label, point: todayVariant.point, coastal: todayVariant.coastal };
     } else {
       configureProjection(0);
