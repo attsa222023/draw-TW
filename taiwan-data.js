@@ -36,6 +36,16 @@ const TAIWAN_LANDMARKS = [
   { name: "台中港", lon: 120.5236, lat: 24.2823, coastal: true },
   { name: "鹿港", lon: 120.4342, lat: 24.0565, coastal: true },
   { name: "蘇澳", lon: 121.8544, lat: 24.5958, coastal: true },
+  { name: "野柳", lon: 121.6897, lat: 25.2058, coastal: true },
+  { name: "金山", lon: 121.6367, lat: 25.2219, coastal: true },
+  { name: "福隆", lon: 121.9436, lat: 25.0169, coastal: true },
+  { name: "通霄", lon: 120.6789, lat: 24.4897, coastal: true },
+  { name: "布袋", lon: 120.1591, lat: 23.3808, coastal: true },
+  { name: "安平", lon: 120.1611, lat: 22.9958, coastal: true },
+  { name: "東港", lon: 120.45, lat: 22.4667, coastal: true },
+  { name: "墾丁", lon: 120.7972, lat: 21.9469, coastal: true },
+  { name: "三仙台", lon: 121.4067, lat: 23.1275, coastal: true },
+  { name: "石梯坪", lon: 121.4736, lat: 23.3567, coastal: true },
 ];
 
 // Reference areas (km²) for turning a raw area difference into something
