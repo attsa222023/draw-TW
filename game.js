@@ -132,6 +132,8 @@
     for (const a of anchorPoints) {
       pool.push({ type: "anchor", label: a.label, point: a.point, coastal: isCoastal(a.point.lon, a.point.lat) });
     }
+    for (const river of TAIWAN_RIVERS) pool.push({ type: "river", label: river.name, path: river.path });
+    for (const range of TAIWAN_MOUNTAIN_RANGES) pool.push({ type: "mountain", label: range.name, path: range.path });
     return pool;
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
@@ -141,6 +143,8 @@
 
   function describeTodayVariant() {
     if (todayVariant.type === "rotate") return `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`;
+    if (todayVariant.type === "river") return `畫布上多了一條參考河流：${todayVariant.label}`;
+    if (todayVariant.type === "mountain") return `畫布上多了一條參考山脈：${todayVariant.label}`;
     return todayVariant.coastal
       ? `起點換成「${todayVariant.label}」，不是最北端`
       : `標示「${todayVariant.label}」在島內的參考位置，不是起點`;
@@ -250,7 +254,92 @@
   // start point would look wrong sitting in the middle of the shape. Set
   // by applyMode().
   let primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
+  // Set alongside primaryMarker by applyMode() on a "river"/"mountain"
+  // challenge day -- an extra overlay drawn on top of the usual scale
+  // bar/marker setup, not a replacement for it. null the rest of the time.
+  let activeFeature = null;
   let challengeMode = false;
+
+  // Rounded-rect helper for the small background pill behind river/mountain
+  // labels, so the label stays legible over the wave texture/ocean gradient.
+  function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawLabelPill(cx, cy, text) {
+    bgCtx.font = "bold 13px sans-serif";
+    const w = bgCtx.measureText(text).width + 16;
+    const h = 22;
+    bgCtx.fillStyle = "rgba(0,0,0,0.55)";
+    roundRectPath(bgCtx, cx - w / 2, cy - h / 2, w, h, 6);
+    bgCtx.fill();
+    bgCtx.fillStyle = "#ffffff";
+    bgCtx.textAlign = "center";
+    bgCtx.textBaseline = "middle";
+    bgCtx.fillText(text, cx, cy);
+    bgCtx.textBaseline = "alphabetic"; // restore the default other draw calls assume
+  }
+
+  // Places points every ~spacingPx along a polyline (each segment gets its
+  // own evenly-divided count, so spacing is only approximate at segment
+  // boundaries -- fine for a casual visual reference, not measurement).
+  function resamplePath(pts, spacingPx) {
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      const count = Math.max(1, Math.round(segLen / spacingPx));
+      for (let j = 0; j < count; j++) {
+        const t = j / count;
+        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function drawRiverLine(path, label) {
+    const pts = path.map(([lon, lat]) => toCanvas(lon, lat));
+    bgCtx.beginPath();
+    bgCtx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const midX = (pts[i].x + pts[i + 1].x) / 2;
+      const midY = (pts[i].y + pts[i + 1].y) / 2;
+      bgCtx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+    }
+    bgCtx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    bgCtx.strokeStyle = "#4fc3f7";
+    bgCtx.lineWidth = 4;
+    bgCtx.lineCap = "round";
+    bgCtx.lineJoin = "round";
+    bgCtx.globalAlpha = 0.9;
+    bgCtx.stroke();
+    bgCtx.globalAlpha = 1;
+
+    const mid = pts[Math.floor(pts.length / 2)];
+    drawLabelPill(mid.x, mid.y - 16, label);
+  }
+
+  function drawMountainRange(path, label) {
+    const pts = path.map(([lon, lat]) => toCanvas(lon, lat));
+    const emojiSpacingPx = 26;
+    const emojiPts = resamplePath(pts, emojiSpacingPx);
+    bgCtx.font = "20px sans-serif";
+    bgCtx.textAlign = "center";
+    bgCtx.textBaseline = "middle";
+    for (const p of emojiPts) bgCtx.fillText("⛰️", p.x, p.y);
+    bgCtx.textBaseline = "alphabetic";
+
+    const mid = pts[Math.floor(pts.length / 2)];
+    drawLabelPill(mid.x, mid.y - 22, label);
+  }
 
   function drawPointMarker(px, color, label, coastal) {
     bgCtx.beginPath();
@@ -362,6 +451,10 @@
     if (showSouthMarker && primaryMarker.point !== southPoint) {
       drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", SOUTH_LABEL, true);
     }
+
+    // river/mountain daily-challenge overlay, if today's variant is one
+    if (activeFeature && activeFeature.type === "river") drawRiverLine(activeFeature.path, activeFeature.label);
+    if (activeFeature && activeFeature.type === "mountain") drawMountainRange(activeFeature.path, activeFeature.label);
   }
 
   const southMarkerToggle = document.getElementById("south-marker-toggle");
@@ -490,12 +583,21 @@
     if (isChallenge && todayVariant.type === "rotate") {
       configureProjection(todayVariant.angle);
       primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
+      activeFeature = null;
+    } else if (isChallenge && (todayVariant.type === "river" || todayVariant.type === "mountain")) {
+      // river/mountain days keep the normal north-point marker + scale bar
+      // and just add the line/emoji overlay on top -- not a replacement
+      configureProjection(0);
+      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
+      activeFeature = todayVariant;
     } else if (isChallenge) {
       configureProjection(0, [todayVariant.point]);
       primaryMarker = { label: todayVariant.label, point: todayVariant.point, coastal: todayVariant.coastal };
+      activeFeature = null;
     } else {
       configureProjection(0);
       primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
+      activeFeature = null;
     }
 
     strokes = [];
