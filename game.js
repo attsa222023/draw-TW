@@ -880,6 +880,10 @@
   const catchupListEl = document.getElementById("catchup-list");
   const catchupCloseBtn = document.getElementById("catchup-close-btn");
 
+  const taglineEl = document.getElementById("tagline");
+  const TAGLINE_DRAW = "憑記憶畫出台灣本島的輪廓，看看你能拿到幾分";
+  const TAGLINE_PLACENAME = "地圖已經攤在你眼前，用最小的圈精準命中每個地名，拿下最高分！";
+
   const hintBarEl = document.getElementById("hint-bar");
   const controlsEl = document.getElementById("controls");
   const placenameHintBarEl = document.getElementById("placename-hint-bar");
@@ -953,6 +957,7 @@
     modeNormalBtn.classList.toggle("active", !isChallenge);
     modeChallengeBtn.classList.toggle("active", isChallenge);
     modePlacenameBtn.classList.toggle("active", false);
+    taglineEl.textContent = TAGLINE_DRAW;
     hintBarEl.hidden = false;
     controlsEl.hidden = false;
     placenameHintBarEl.hidden = true;
@@ -1052,6 +1057,7 @@
     modeNormalBtn.classList.toggle("active", false);
     modeChallengeBtn.classList.toggle("active", false);
     modePlacenameBtn.classList.toggle("active", true);
+    taglineEl.textContent = TAGLINE_PLACENAME;
     challengeDescEl.hidden = true;
     challengeToolsEl.hidden = true;
     catchupPanel.hidden = true;
@@ -1209,7 +1215,7 @@
 
   function finishPlacenameChallenge() {
     const { totalPoints, pct } = computePlacenameScore(placenameResults);
-    const [grade, message] = gradeFor(pct);
+    const [grade, message] = gradeFor(pct, PLACENAME_GRADE_MESSAGES);
     const { records, isNewBest } = recordAttempt(PLACENAME_RECORDS_KEY, pct, grade);
     updateBestScoreDisplay(records, "🏆 地名挑戰最高");
     renderPlacenameResults(totalPoints, pct, grade, message, isNewBest);
@@ -1473,18 +1479,60 @@
     ],
   };
 
+  // Same shape as GRADE_MESSAGES but themed around pinpointing place names
+  // on a visible map (geography/precision) rather than freehand drawing
+  // accuracy -- used by the placename challenge instead.
+  const PLACENAME_GRADE_MESSAGES = {
+    S: [
+      "根本是台灣百科全書，指哪打哪！",
+      "地理小老師本人，一點都不誇張！",
+      "這精準度，內政部要來挖角了",
+      "台灣任何角落都逃不過你的手指",
+      "GPS 定位大概就長這樣吧！",
+      "地名一報你就秒懂位置，太狂了",
+    ],
+    A: [
+      "很厲害了！只差一兩題就滿分",
+      "地理實力有目共睹，再抓緊一點就完美",
+      "大部分地名都被你一眼看穿",
+      "台灣地圖在你心中已經有雛形了",
+      "選圈的策略也很聰明，可惜差臨門一腳",
+    ],
+    B: [
+      "抓到一些方向感，但還能更準",
+      "認得出大概位置，細節要再練練",
+      "半個台灣在你腦中，另一半好像跑丟了",
+      "有練過，但地圖冊還不能丟",
+      "圈選得不錯，位置感再加強一下",
+    ],
+    C: [
+      "方向感有點迷路，多看地圖會更好",
+      "抓錯地方的機率有點高喔",
+      "台灣地名跟你玩起躲貓貓了",
+      "感覺你比較熟悉的是另一個台灣",
+      "半數地名都跑到別的縣市去了",
+    ],
+    D: [
+      "這些地名對你來說還很陌生呢",
+      "地圖冊建議隨身攜帶",
+      "看來要重新認識一下台灣了",
+      "每一題都跟目標擦肩而過",
+      "先從縣市界線開始複習吧！",
+    ],
+  };
+
   function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  function gradeFor(scorePct) {
+  function gradeFor(scorePct, messagePool) {
     let grade;
     if (scorePct >= 90) grade = "S";
     else if (scorePct >= 75) grade = "A";
     else if (scorePct >= 55) grade = "B";
     else if (scorePct >= 35) grade = "C";
     else grade = "D";
-    return [grade, pickRandom(GRADE_MESSAGES[grade])];
+    return [grade, pickRandom((messagePool || GRADE_MESSAGES)[grade])];
   }
 
   function setBar(barEl, valueEl, pct) {

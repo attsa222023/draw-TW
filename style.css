@@ -212,6 +212,14 @@ main {
   font-size: 0.85rem;
 }
 
+/* Wasn't toggled via the `hidden` attribute until placename mode started
+   hiding the whole bar at once (previously only individual children inside
+   it were ever hidden) -- same [hidden]-vs-author-display-rule cascade bug
+   as .toggle-hint/#challenge-tools before it. */
+#hint-bar[hidden] {
+  display: none;
+}
+
 .hint {
   background: var(--panel-bg);
   padding: 4px 10px;
@@ -401,6 +409,12 @@ main {
   margin-top: 16px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* Same cascade bug as #hint-bar above -- placename mode is the first thing
+   to ever hide this whole bar rather than just individual buttons in it. */
+#controls[hidden] {
+  display: none;
 }
 
 button {
