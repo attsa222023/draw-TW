@@ -234,6 +234,126 @@ main {
   cursor: pointer;
 }
 
+/* Placename challenge -- mirrors #hint-bar's layout exactly (shown only
+   while that mode is active, #hint-bar hidden in its place). */
+#placename-hint-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+
+#placename-hint-bar[hidden] {
+  display: none;
+}
+
+#placename-tier-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+#placename-tier-picker[hidden] {
+  display: none;
+}
+
+.tier-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid var(--ocean-light);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tier-btn:hover:not(:disabled) {
+  background: var(--ocean-light);
+}
+
+.tier-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+.tier-btn.used {
+  opacity: 0.35;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+#placename-feedback {
+  margin-top: 10px;
+  min-height: 1.2em;
+  font-weight: 600;
+}
+
+#placename-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#placename-controls[hidden] {
+  display: none;
+}
+
+#confirm-placename-btn {
+  background: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+#placename-result-panel {
+  margin-top: 20px;
+  padding: 18px 24px;
+  border-radius: 12px;
+  background: var(--panel-bg);
+  text-align: center;
+  width: 100%;
+}
+
+#placename-score-grade {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+#placename-score-number {
+  font-size: 1.3rem;
+  margin-top: 4px;
+  opacity: 0.9;
+}
+
+#placename-score-message {
+  margin: 10px 0 4px;
+  opacity: 0.85;
+}
+
+#placename-breakdown {
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+#placename-retry-btn {
+  background: var(--real-color);
+  color: #06331a;
+  font-weight: 700;
+}
+
 #canvas-wrap {
   position: relative;
   width: 100%;

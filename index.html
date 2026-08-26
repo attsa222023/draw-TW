@@ -9,7 +9,7 @@
      enough that without a cache-busting query string, a deploy can take a
      long time (or a manual hard-refresh) to actually reach a returning
      visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <header>
@@ -18,6 +18,7 @@
     <div id="mode-toggle">
       <button id="mode-normal-btn" class="mode-btn" type="button">一般模式</button>
       <button id="mode-challenge-btn" class="mode-btn" type="button">🗓️ 每日挑戰</button>
+      <button id="mode-placename-btn" class="mode-btn" type="button">📍 地名挑戰</button>
     </div>
     <p id="challenge-desc" class="subtitle" hidden></p>
     <div id="challenge-tools" hidden>
@@ -42,6 +43,14 @@
       </label>
     </div>
 
+    <div id="placename-hint-bar" hidden>
+      <span id="placename-question" class="hint"></span>
+      <label id="county-toggle-label" class="hint toggle-hint">
+        <input type="checkbox" id="county-overlay-toggle" checked>
+        顯示縣市名稱與界線
+      </label>
+    </div>
+
     <div id="canvas-wrap">
       <canvas id="bg-canvas"></canvas>
       <canvas id="draw-canvas"></canvas>
@@ -49,12 +58,28 @@
       <div id="rotate-hint" hidden>📱 今天的地圖偏橫向，建議把手機轉成橫向遊玩，畫布會大很多！</div>
     </div>
 
+    <div id="placename-tier-picker" hidden></div>
+    <p id="placename-feedback" class="subtitle" hidden></p>
+
     <div id="controls">
       <button id="undo-btn" type="button">復原</button>
       <button id="clear-btn" type="button">清除重畫</button>
       <button id="finish-btn" type="button">完成</button>
       <button id="download-card-btn" type="button" hidden>下載成績卡片</button>
       <button id="retry-btn" type="button" hidden>再玩一次</button>
+    </div>
+
+    <div id="placename-controls" hidden>
+      <button id="confirm-placename-btn" type="button" hidden>確認位置</button>
+      <button id="next-placename-btn" type="button" hidden>下一題</button>
+    </div>
+
+    <div id="placename-result-panel" hidden>
+      <div id="placename-score-grade"></div>
+      <div id="placename-score-number"></div>
+      <p id="placename-score-message"></p>
+      <div id="placename-breakdown"></div>
+      <button id="placename-retry-btn" type="button">再玩一次</button>
     </div>
 
     <div id="result-panel" hidden>
@@ -92,8 +117,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=6"></script>
-  <script src="records.js?v=6"></script>
-  <script src="game.js?v=6"></script>
+  <script src="taiwan-data.js?v=7"></script>
+  <script src="records.js?v=7"></script>
+  <script src="game.js?v=7"></script>
 </body>
 </html>

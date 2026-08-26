@@ -303,6 +303,49 @@
     return `${m}/${d} (${weekday})`;
   }
 
+  // ---- Daily Placename Challenge ("每日台灣地名挑戰") ---------------------
+  // A separate mode from the draw challenge: the player sees the full
+  // island (optionally with county names/borders) and, for 5 place names
+  // shown one at a time, picks one of 5 differently-sized circles (each
+  // used exactly once across the 5 questions) and drops it on the map
+  // trying to cover that place. Smaller circle -> more points, but only if
+  // it's actually placed accurately enough to cover the target.
+  //
+  // Radii chosen so the smallest circle is roughly "a small town" (a few
+  // hundred km²) and the largest is roughly a third of Taiwan's ~35,800km²
+  // land area (area = πr² => r ≈ 62km for 1/3 of that).
+  const PLACENAME_CIRCLE_TIERS = [
+    { radiusKm: 8, points: 100, label: "極小" },
+    { radiusKm: 18, points: 80, label: "小" },
+    { radiusKm: 32, points: 60, label: "中" },
+    { radiusKm: 48, points: 40, label: "大" },
+    { radiusKm: 62, points: 20, label: "極大" },
+  ];
+  const PLACENAME_QUESTIONS_PER_DAY = 5;
+  const PLACENAME_MAX_SCORE = PLACENAME_CIRCLE_TIERS.reduce((sum, t) => sum + t.points, 0);
+
+  // For now the test pool IS exactly one day's worth of questions, so
+  // "today's 5" is just the whole pool in a daily-shuffled order (reusing
+  // the same shuffledIndices/date machinery as the draw-challenge pool).
+  // Once a real, larger pool exists, this becomes "pick N of the pool"
+  // instead -- everything else in this mode is already written generically
+  // against "however many questions came back" so that swap won't ripple.
+  function todaysPlacenames() {
+    const pool = PLACENAME_TEST_POOL;
+    const order = shuffledIndices(pool.length, dateStringToDayIndex(getTaipeiDateString()));
+    return order.map((i) => pool[i]).slice(0, PLACENAME_QUESTIONS_PER_DAY);
+  }
+
+  function computePlacenameScore(results) {
+    const totalPoints = results.reduce(
+      (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
+      0
+    );
+    const correctCount = results.filter((r) => r.correct).length;
+    const pct = Math.round((totalPoints / PLACENAME_MAX_SCORE) * 100);
+    return { totalPoints, correctCount, pct };
+  }
+
   // ---- Canvas / DOM setup --------------------------------------------------
   const wrap = document.getElementById("canvas-wrap");
   const bgCanvas = document.getElementById("bg-canvas");
@@ -398,6 +441,26 @@
   }
   let showSouthMarker = loadShowSouthMarker();
 
+  // Whether the placename challenge shows county names/borders -- its one
+  // difficulty toggle. Persisted the same way as showSouthMarker above.
+  const SHOW_COUNTY_OVERLAY_KEY = "drawTaiwanShowCountyOverlay";
+  function loadShowCountyOverlay() {
+    try {
+      const raw = localStorage.getItem(SHOW_COUNTY_OVERLAY_KEY);
+      return raw === null ? true : raw === "1";
+    } catch (e) {
+      return true;
+    }
+  }
+  function saveShowCountyOverlay(value) {
+    try {
+      localStorage.setItem(SHOW_COUNTY_OVERLAY_KEY, value ? "1" : "0");
+    } catch (e) {
+      /* ignore (private browsing, quota, etc.) */
+    }
+  }
+  let showCountyOverlay = loadShowCountyOverlay();
+
   // Today's point markers ({point, label, style}, style one of
   // 起點/中繼點/參考點) and line overlays ({kind, path, label}, kind one of
   // river/mountain) -- 1 point marker (north) in normal mode and on a
@@ -417,6 +480,19 @@
   // drawBackground() so it doesn't have to redo the day->variant lookup
   // (which reshuffles the whole pool) on every redraw.
   let activeVariant = null;
+
+  // Placename-challenge state -- mutually exclusive with challengeMode
+  // (entering this mode sets challengeMode false and vice versa; only one
+  // of the three top-level modes -- normal draw / draw challenge /
+  // placename challenge -- is ever active at once).
+  let placenameMode = false;
+  let placenameQuestions = []; // today's questions, in play order
+  let placenameQuestionIndex = 0;
+  let placenameAvailableTiers = []; // indices into PLACENAME_CIRCLE_TIERS not yet used this game
+  let placenameSelectedTierIndex = null; // tier picked for the CURRENT question, if any
+  let placenameCirclePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
+  let placenameAnswered = false; // true once the current question has been confirmed (reveal shown)
+  let placenameResults = []; // [{name, tierIndex, correct, distanceKm}], one per answered question
 
   // Rounded-rect helper for the small background pill behind river/mountain
   // labels, so the label stays legible over the wave texture/ocean gradient.
@@ -536,27 +612,34 @@
     bgCtx.fillText(label, labelX, labelY);
   }
 
-  function drawBackground() {
-    bgCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  // Ocean gradient + wave texture, shared by drawBackground() (normal/daily-
+  // challenge modes, which never show the actual coastline) and
+  // drawPlacenameBackground() (which does) -- kept as one function so the
+  // two never visually drift apart.
+  function paintOceanBase(ctx, w, h) {
+    ctx.clearRect(0, 0, w, h);
 
-    const grad = bgCtx.createLinearGradient(0, 0, 0, CANVAS_H);
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, "#1c5d82");
     grad.addColorStop(1, "#0b3d5c");
-    bgCtx.fillStyle = grad;
-    bgCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
 
-    // subtle wave texture
-    bgCtx.strokeStyle = "rgba(255,255,255,0.06)";
-    bgCtx.lineWidth = 2;
-    for (let y = 20; y < CANVAS_H; y += 34) {
-      bgCtx.beginPath();
-      for (let x = 0; x <= CANVAS_W; x += 10) {
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 2;
+    for (let y = 20; y < h; y += 34) {
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 10) {
         const wy = y + Math.sin((x + y) * 0.05) * 4;
-        if (x === 0) bgCtx.moveTo(x, wy);
-        else bgCtx.lineTo(x, wy);
+        if (x === 0) ctx.moveTo(x, wy);
+        else ctx.lineTo(x, wy);
       }
-      bgCtx.stroke();
+      ctx.stroke();
     }
+  }
+
+  function drawBackground() {
+    paintOceanBase(bgCtx, CANVAS_W, CANVAS_H);
 
     // north indicator -- rotated to keep pointing at true north, so it
     // stays honest (and useful) even when the map itself is rotated
@@ -629,6 +712,50 @@
     }
   }
 
+  // County borders (thin lines) + name labels, drawn over the filled
+  // island in drawPlacenameBackground() when the difficulty toggle is on.
+  function drawCountyOverlay() {
+    bgCtx.strokeStyle = "rgba(255,255,255,0.55)";
+    bgCtx.lineWidth = 1.25;
+    for (const county of TAIWAN_COUNTIES) {
+      const pts = county.path.map(([lon, lat]) => toCanvas(lon, lat));
+      bgCtx.beginPath();
+      bgCtx.moveTo(pts[0].x, pts[0].y);
+      for (const p of pts) bgCtx.lineTo(p.x, p.y);
+      bgCtx.closePath();
+      bgCtx.stroke();
+    }
+    bgCtx.fillStyle = "rgba(255,255,255,0.9)";
+    bgCtx.font = "11px sans-serif";
+    bgCtx.textAlign = "center";
+    bgCtx.textBaseline = "middle";
+    for (const county of TAIWAN_COUNTIES) {
+      const p = toCanvas(county.centroid[0], county.centroid[1]);
+      bgCtx.fillText(county.name, p.x, p.y);
+    }
+    bgCtx.textBaseline = "alphabetic";
+  }
+
+  // Unlike drawBackground() (normal/draw-challenge modes), this mode's
+  // whole premise is showing the player the actual island so they can
+  // place a place name relative to it -- so, uniquely, it fills/strokes
+  // REAL_PATH instead of leaving the map blank apart from hint markers.
+  function drawPlacenameBackground() {
+    paintOceanBase(bgCtx, CANVAS_W, CANVAS_H);
+
+    bgCtx.fillStyle = "#3a92c9";
+    bgCtx.beginPath();
+    bgCtx.moveTo(REAL_PATH[0].x, REAL_PATH[0].y);
+    for (const p of REAL_PATH) bgCtx.lineTo(p.x, p.y);
+    bgCtx.closePath();
+    bgCtx.fill();
+    bgCtx.strokeStyle = "#eaf6ff";
+    bgCtx.lineWidth = 2;
+    bgCtx.stroke();
+
+    if (showCountyOverlay) drawCountyOverlay();
+  }
+
   const southMarkerToggle = document.getElementById("south-marker-toggle");
   const southToggleLabel = document.getElementById("south-toggle-label");
   southMarkerToggle.checked = showSouthMarker;
@@ -636,6 +763,14 @@
     showSouthMarker = southMarkerToggle.checked;
     saveShowSouthMarker(showSouthMarker);
     drawBackground();
+  });
+
+  const countyOverlayToggle = document.getElementById("county-overlay-toggle");
+  countyOverlayToggle.checked = showCountyOverlay;
+  countyOverlayToggle.addEventListener("change", () => {
+    showCountyOverlay = countyOverlayToggle.checked;
+    saveShowCountyOverlay(showCountyOverlay);
+    drawPlacenameBackground();
   });
 
   // ---- Drawing interaction --------------------------------------------------
@@ -677,6 +812,10 @@
   }
 
   drawCanvas.addEventListener("pointerdown", (evt) => {
+    if (placenameMode) {
+      handlePlacenameClick(evt);
+      return;
+    }
     if (finished) return;
     try {
       drawCanvas.setPointerCapture(evt.pointerId);
@@ -732,6 +871,7 @@
   }
   const modeNormalBtn = document.getElementById("mode-normal-btn");
   const modeChallengeBtn = document.getElementById("mode-challenge-btn");
+  const modePlacenameBtn = document.getElementById("mode-placename-btn");
   const challengeDescEl = document.getElementById("challenge-desc");
   const challengeToolsEl = document.getElementById("challenge-tools");
   const catchupBtn = document.getElementById("catchup-btn");
@@ -740,10 +880,26 @@
   const catchupListEl = document.getElementById("catchup-list");
   const catchupCloseBtn = document.getElementById("catchup-close-btn");
 
+  const hintBarEl = document.getElementById("hint-bar");
+  const controlsEl = document.getElementById("controls");
+  const placenameHintBarEl = document.getElementById("placename-hint-bar");
+  const placenameQuestionEl = document.getElementById("placename-question");
+  const placenameTierPickerEl = document.getElementById("placename-tier-picker");
+  const placenameFeedbackEl = document.getElementById("placename-feedback");
+  const placenameControlsEl = document.getElementById("placename-controls");
+  const confirmPlacenameBtn = document.getElementById("confirm-placename-btn");
+  const nextPlacenameBtn = document.getElementById("next-placename-btn");
+  const placenameResultPanelEl = document.getElementById("placename-result-panel");
+  const placenameScoreGradeEl = document.getElementById("placename-score-grade");
+  const placenameScoreNumberEl = document.getElementById("placename-score-number");
+  const placenameScoreMessageEl = document.getElementById("placename-score-message");
+  const placenameBreakdownEl = document.getElementById("placename-breakdown");
+  const placenameRetryBtn = document.getElementById("placename-retry-btn");
+  const PLACENAME_RECORDS_KEY = "drawTaiwanPlacenameRecords";
+
   let lastResult = null; // {scores, grade, message} for the download-card button
 
-  function updateBestScoreDisplay(records, isChallenge) {
-    const prefix = isChallenge ? "🏆 每日挑戰最高" : "🏆 最高紀錄";
+  function updateBestScoreDisplay(records, prefix) {
     if (records.attempts === 0) {
       bestScoreLine.textContent = `${prefix}：尚未挑戰`;
       return;
@@ -756,6 +912,7 @@
   // drawing (the canvas geometry may have just changed size), and updates
   // every mode-dependent bit of UI.
   function applyMode(isChallenge) {
+    placenameMode = false;
     challengeMode = isChallenge;
     activeVariant = isChallenge
       ? activeChallengeDate
@@ -795,6 +952,14 @@
 
     modeNormalBtn.classList.toggle("active", !isChallenge);
     modeChallengeBtn.classList.toggle("active", isChallenge);
+    modePlacenameBtn.classList.toggle("active", false);
+    hintBarEl.hidden = false;
+    controlsEl.hidden = false;
+    placenameHintBarEl.hidden = true;
+    placenameTierPickerEl.hidden = true;
+    placenameFeedbackEl.hidden = true;
+    placenameControlsEl.hidden = true;
+    placenameResultPanelEl.hidden = true;
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) {
       const dayLabel = activeChallengeDate ? `補玩 ${formatDisplayDate(activeChallengeDate)}` : "今日挑戰";
@@ -817,20 +982,27 @@
     updateRotateHint();
 
     drawBackground();
-    updateBestScoreDisplay(loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY), isChallenge);
+    updateBestScoreDisplay(
+      loadRecords(isChallenge ? CHALLENGE_RECORDS_KEY : RECORDS_KEY),
+      isChallenge ? "🏆 每日挑戰最高" : "🏆 最高紀錄"
+    );
   }
 
   modeNormalBtn.addEventListener("click", () => {
-    if (!challengeMode) return;
+    if (!challengeMode && !placenameMode) return;
     applyMode(false);
   });
   modeChallengeBtn.addEventListener("click", () => {
     // already showing today's challenge -- no-op, don't discard a
     // drawing in progress just because the (already-active) tab was
     // clicked again
-    if (challengeMode && !activeChallengeDate) return;
+    if (challengeMode && !activeChallengeDate && !placenameMode) return;
     activeChallengeDate = null; // clicking the tab always resets to today
     applyMode(true);
+  });
+  modePlacenameBtn.addEventListener("click", () => {
+    if (placenameMode) return;
+    enterPlacenameMode();
   });
 
   // ---- Catch-up: replay a past day's challenge ---------------------------
@@ -869,6 +1041,182 @@
   backToTodayBtn.addEventListener("click", () => {
     activeChallengeDate = null;
     applyMode(true);
+  });
+
+  // ---- Placename challenge game flow --------------------------------------
+  function enterPlacenameMode() {
+    challengeMode = false;
+    placenameMode = true;
+    configureProjection(0); // always the plain, unrotated island in this mode
+
+    modeNormalBtn.classList.toggle("active", false);
+    modeChallengeBtn.classList.toggle("active", false);
+    modePlacenameBtn.classList.toggle("active", true);
+    challengeDescEl.hidden = true;
+    challengeToolsEl.hidden = true;
+    catchupPanel.hidden = true;
+    hintBarEl.hidden = true;
+    controlsEl.hidden = true;
+    startHintEl.hidden = true;
+    resultPanel.hidden = true;
+    placenameHintBarEl.hidden = false;
+    placenameTierPickerEl.hidden = false;
+    placenameFeedbackEl.hidden = false;
+    placenameControlsEl.hidden = false;
+    placenameResultPanelEl.hidden = true;
+    updateRotateHint();
+
+    placenameQuestions = todaysPlacenames();
+    placenameQuestionIndex = 0;
+    placenameAvailableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
+    placenameResults = [];
+
+    drawPlacenameBackground();
+    updateBestScoreDisplay(loadRecords(PLACENAME_RECORDS_KEY), "🏆 地名挑戰最高");
+    startPlacenameQuestion();
+  }
+
+  function startPlacenameQuestion() {
+    const q = placenameQuestions[placenameQuestionIndex];
+    placenameQuestionEl.textContent = `📍 第 ${placenameQuestionIndex + 1} 題／${placenameQuestions.length}：${q.name}`;
+    placenameSelectedTierIndex = null;
+    placenameCirclePx = null;
+    placenameAnswered = false;
+    placenameFeedbackEl.textContent = "";
+    confirmPlacenameBtn.hidden = true;
+    nextPlacenameBtn.hidden = true;
+    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    renderTierButtons();
+  }
+
+  function renderTierButtons() {
+    placenameTierPickerEl.innerHTML = "";
+    PLACENAME_CIRCLE_TIERS.forEach((tier, i) => {
+      const used = !placenameAvailableTiers.includes(i);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "tier-btn" + (placenameSelectedTierIndex === i ? " selected" : "") + (used ? " used" : "");
+      btn.textContent = `${tier.label}（${tier.points}分）`;
+      btn.disabled = used || placenameAnswered;
+      btn.addEventListener("click", () => {
+        placenameSelectedTierIndex = i;
+        renderTierButtons();
+        redrawPlacenamePreview();
+      });
+      placenameTierPickerEl.appendChild(btn);
+    });
+  }
+
+  function redrawPlacenamePreview() {
+    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (placenameCirclePx === null || placenameSelectedTierIndex === null) return;
+    const tier = PLACENAME_CIRCLE_TIERS[placenameSelectedTierIndex];
+    const radiusPx = tier.radiusKm / KM_PER_PX;
+    drawCtx.beginPath();
+    drawCtx.arc(placenameCirclePx.x, placenameCirclePx.y, radiusPx, 0, Math.PI * 2);
+    drawCtx.fillStyle = "rgba(255, 183, 3, 0.35)";
+    drawCtx.fill();
+    drawCtx.strokeStyle = "#ffb703";
+    drawCtx.lineWidth = 2;
+    drawCtx.stroke();
+  }
+
+  function handlePlacenameClick(evt) {
+    if (placenameAnswered || placenameSelectedTierIndex === null) return;
+    placenameCirclePx = canvasPointFromEvent(evt);
+    redrawPlacenamePreview();
+    confirmPlacenameBtn.hidden = false;
+  }
+
+  confirmPlacenameBtn.addEventListener("click", () => {
+    if (placenameCirclePx === null || placenameSelectedTierIndex === null || placenameAnswered) return;
+    const tier = PLACENAME_CIRCLE_TIERS[placenameSelectedTierIndex];
+    const target = placenameQuestions[placenameQuestionIndex];
+    // Inverse of toCanvas() -- this mode never rotates the projection, so
+    // there's no rotation to undo here, just the origin offset + scale.
+    const kmX = (placenameCirclePx.x - originPxX) * KM_PER_PX;
+    const kmY = (placenameCirclePx.y - originPxY) * KM_PER_PX;
+    const targetKm = projectKm(target.lon, target.lat);
+    const distanceKm = Math.hypot(kmX - targetKm.x, kmY - targetKm.y);
+    const correct = distanceKm <= tier.radiusKm;
+
+    placenameResults.push({ name: target.name, tierIndex: placenameSelectedTierIndex, correct, distanceKm });
+    placenameAvailableTiers = placenameAvailableTiers.filter((i) => i !== placenameSelectedTierIndex);
+    placenameAnswered = true;
+
+    const radiusPx = tier.radiusKm / KM_PER_PX;
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    resultCtx.beginPath();
+    resultCtx.arc(placenameCirclePx.x, placenameCirclePx.y, radiusPx, 0, Math.PI * 2);
+    resultCtx.fillStyle = correct ? "rgba(46, 204, 113, 0.3)" : "rgba(255, 82, 82, 0.3)";
+    resultCtx.fill();
+    resultCtx.strokeStyle = correct ? "#2ecc71" : "#ff5252";
+    resultCtx.lineWidth = 2.5;
+    resultCtx.stroke();
+    // mark the actual location so a miss is easy to learn from
+    const targetPx = toCanvas(target.lon, target.lat);
+    resultCtx.beginPath();
+    resultCtx.arc(targetPx.x, targetPx.y, 5, 0, Math.PI * 2);
+    resultCtx.fillStyle = "#ffffff";
+    resultCtx.fill();
+    resultCtx.strokeStyle = "#000000";
+    resultCtx.lineWidth = 1.5;
+    resultCtx.stroke();
+
+    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    placenameFeedbackEl.textContent = correct
+      ? `✅ 涵蓋成功！`
+      : `❌ 沒涵蓋到，差了約 ${Math.round(distanceKm)} 公里`;
+    confirmPlacenameBtn.hidden = true;
+    renderTierButtons();
+
+    if (placenameQuestionIndex < placenameQuestions.length - 1) {
+      nextPlacenameBtn.hidden = false;
+    } else {
+      finishPlacenameChallenge();
+    }
+  });
+
+  nextPlacenameBtn.addEventListener("click", () => {
+    placenameQuestionIndex++;
+    startPlacenameQuestion();
+  });
+
+  function renderPlacenameResults(totalPoints, pct, grade, message, isNewBest) {
+    placenameScoreGradeEl.textContent = grade;
+    placenameScoreNumberEl.textContent = `${totalPoints} / ${PLACENAME_MAX_SCORE} 分（${pct}%）`;
+    placenameScoreMessageEl.textContent =
+      (isNewBest ? "🎉 新紀錄！ " : "") + message;
+
+    placenameBreakdownEl.innerHTML = "";
+    placenameResults.forEach((r, i) => {
+      const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
+      const div = document.createElement("div");
+      div.className = "analysis-line";
+      div.textContent = r.correct
+        ? `${i + 1}. ${r.name} — ✅ 用了「${tier.label}」，${tier.points} 分`
+        : `${i + 1}. ${r.name} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
+      placenameBreakdownEl.appendChild(div);
+    });
+
+    placenameTierPickerEl.hidden = true;
+    placenameFeedbackEl.hidden = true;
+    placenameControlsEl.hidden = true;
+    placenameResultPanelEl.hidden = false;
+  }
+
+  function finishPlacenameChallenge() {
+    const { totalPoints, pct } = computePlacenameScore(placenameResults);
+    const [grade, message] = gradeFor(pct);
+    const { records, isNewBest } = recordAttempt(PLACENAME_RECORDS_KEY, pct, grade);
+    updateBestScoreDisplay(records, "🏆 地名挑戰最高");
+    renderPlacenameResults(totalPoints, pct, grade, message, isNewBest);
+  }
+
+  placenameRetryBtn.addEventListener("click", () => {
+    enterPlacenameMode();
   });
 
   undoBtn.addEventListener("click", () => {
@@ -1334,7 +1682,7 @@
     const [grade, message] = gradeFor(scores.overall);
     const recordsKey = challengeMode ? CHALLENGE_RECORDS_KEY : RECORDS_KEY;
     const { records, isNewBest } = recordAttempt(recordsKey, scores.overall, grade);
-    updateBestScoreDisplay(records, challengeMode);
+    updateBestScoreDisplay(records, challengeMode ? "🏆 每日挑戰最高" : "🏆 最高紀錄");
     if (challengeMode) {
       // Recorded under the challenge's own date (today's, or the day being
       // caught up on) so the catch-up picker can show it as done.
