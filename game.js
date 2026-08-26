@@ -461,6 +461,25 @@
   }
   let showCountyOverlay = loadShowCountyOverlay();
 
+  // Whether the placename mode's how-to-play modal has already been shown
+  // and dismissed once -- shown automatically the first time, reopenable
+  // anytime afterward via the "❓ 怎麼玩？" button.
+  const PLACENAME_TUTORIAL_SEEN_KEY = "drawTaiwanPlacenameTutorialSeen";
+  function hasSeenPlacenameTutorial() {
+    try {
+      return localStorage.getItem(PLACENAME_TUTORIAL_SEEN_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+  function markPlacenameTutorialSeen() {
+    try {
+      localStorage.setItem(PLACENAME_TUTORIAL_SEEN_KEY, "1");
+    } catch (e) {
+      /* ignore (private browsing, quota, etc.) */
+    }
+  }
+
   // Today's point markers ({point, label, style}, style one of
   // 起點/中繼點/參考點) and line overlays ({kind, path, label}, kind one of
   // river/mountain) -- 1 point marker (north) in normal mode and on a
@@ -887,6 +906,9 @@
   const hintBarEl = document.getElementById("hint-bar");
   const controlsEl = document.getElementById("controls");
   const placenameHintBarEl = document.getElementById("placename-hint-bar");
+  const placenameHelpBtn = document.getElementById("placename-help-btn");
+  const placenameTutorialOverlay = document.getElementById("placename-tutorial-overlay");
+  const placenameTutorialCloseBtn = document.getElementById("placename-tutorial-close-btn");
   const placenameQuestionEl = document.getElementById("placename-question");
   const placenameTierPickerEl = document.getElementById("placename-tier-picker");
   const placenameFeedbackEl = document.getElementById("placename-feedback");
@@ -965,6 +987,7 @@
     placenameFeedbackEl.hidden = true;
     placenameControlsEl.hidden = true;
     placenameResultPanelEl.hidden = true;
+    placenameTutorialOverlay.hidden = true;
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) {
       const dayLabel = activeChallengeDate ? `補玩 ${formatDisplayDate(activeChallengeDate)}` : "今日挑戰";
@@ -1080,7 +1103,19 @@
     drawPlacenameBackground();
     updateBestScoreDisplay(loadRecords(PLACENAME_RECORDS_KEY), "🏆 地名挑戰最高");
     startPlacenameQuestion();
+
+    if (!hasSeenPlacenameTutorial()) showPlacenameTutorial();
   }
+
+  function showPlacenameTutorial() {
+    placenameTutorialOverlay.hidden = false;
+  }
+
+  placenameHelpBtn.addEventListener("click", showPlacenameTutorial);
+  placenameTutorialCloseBtn.addEventListener("click", () => {
+    placenameTutorialOverlay.hidden = true;
+    markPlacenameTutorialSeen();
+  });
 
   function startPlacenameQuestion() {
     const q = placenameQuestions[placenameQuestionIndex];

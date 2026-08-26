@@ -9,7 +9,7 @@
      enough that without a cache-busting query string, a deploy can take a
      long time (or a manual hard-refresh) to actually reach a returning
      visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <header>
@@ -49,6 +49,21 @@
         <input type="checkbox" id="county-overlay-toggle" checked>
         顯示縣市名稱與界線
       </label>
+      <button id="placename-help-btn" class="hint" type="button">❓ 怎麼玩？</button>
+    </div>
+
+    <div id="placename-tutorial-overlay" hidden>
+      <div id="placename-tutorial-modal">
+        <h2>📍 每日台灣地名挑戰</h2>
+        <ul>
+          <li>🗺️ 地圖上已經顯示完整台灣本島，縣市名稱與界線可依難度自由開關</li>
+          <li>📍 每天依序出現 5 個地名</li>
+          <li>⭕ 每題選一個大小不同的圓，點在地圖上你覺得那個地名所在的位置</li>
+          <li>🎯 圈要準確涵蓋到地名的位置才算答對，圈越小分數越高（100／80／60／40／20 分）</li>
+          <li>♻️ 每種尺寸的圈限用一次，答錯就是那題 0 分，滿分共 300 分</li>
+        </ul>
+        <button id="placename-tutorial-close-btn" type="button">開始挑戰！</button>
+      </div>
     </div>
 
     <div id="canvas-wrap">
@@ -117,8 +132,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=8"></script>
-  <script src="records.js?v=8"></script>
-  <script src="game.js?v=8"></script>
+  <script src="taiwan-data.js?v=9"></script>
+  <script src="records.js?v=9"></script>
+  <script src="game.js?v=9"></script>
 </body>
 </html>

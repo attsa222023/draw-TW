@@ -257,6 +257,67 @@ main {
   display: none;
 }
 
+#placename-help-btn {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#placename-tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 20px;
+}
+
+#placename-tutorial-overlay[hidden] {
+  display: none;
+}
+
+#placename-tutorial-modal {
+  max-width: 420px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1c5d82 0%, #0b3d5c 100%);
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+#placename-tutorial-modal h2 {
+  margin: 0 0 14px;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+#placename-tutorial-modal ul {
+  margin: 0 0 18px;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#placename-tutorial-modal li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+#placename-tutorial-close-btn {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
 #placename-tier-picker {
   display: flex;
   flex-wrap: wrap;
