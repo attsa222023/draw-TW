@@ -371,9 +371,13 @@
     return picks;
   }
 
-  function todaysPlacenames() {
-    const dayIndex = dateStringToDayIndex(getTaipeiDateString());
+  function placenameQuestionsForDate(dateStr) {
+    const dayIndex = dateStringToDayIndex(dateStr);
     return placenameIndicesForDayIndex(dayIndex).map((i) => PLACENAME_POOL[i]);
+  }
+
+  function todaysPlacenames() {
+    return placenameQuestionsForDate(getTaipeiDateString());
   }
 
   function computePlacenameScore(results) {
@@ -552,6 +556,10 @@
   let placenameCirclePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
   let placenameAnswered = false; // true once the current question has been confirmed (reveal shown)
   let placenameResults = []; // [{name, tierIndex, correct, distanceKm}], one per answered question
+  // Catch-up state, same idea as activeChallengeDate for the draw
+  // challenge: null means "today's 5 questions"; otherwise a
+  // "YYYY-MM-DD" Taipei date string for a past day being replayed.
+  let activePlacenameDate = null;
 
   // Rounded-rect helper for the small background pill behind river/mountain
   // labels, so the label stays legible over the wave texture/ocean gradient.
@@ -949,6 +957,12 @@
   const placenameHelpBtn = document.getElementById("placename-help-btn");
   const placenameTutorialOverlay = document.getElementById("placename-tutorial-overlay");
   const placenameTutorialCloseBtn = document.getElementById("placename-tutorial-close-btn");
+  const placenameToolsEl = document.getElementById("placename-tools");
+  const placenameCatchupBtn = document.getElementById("placename-catchup-btn");
+  const placenameBackToTodayBtn = document.getElementById("placename-back-to-today-btn");
+  const placenameCatchupPanel = document.getElementById("placename-catchup-panel");
+  const placenameCatchupListEl = document.getElementById("placename-catchup-list");
+  const placenameCatchupCloseBtn = document.getElementById("placename-catchup-close-btn");
   const placenameQuestionEl = document.getElementById("placename-question");
   const placenameTierPickerEl = document.getElementById("placename-tier-picker");
   const placenameFeedbackEl = document.getElementById("placename-feedback");
@@ -1028,6 +1042,8 @@
     placenameControlsEl.hidden = true;
     placenameResultPanelEl.hidden = true;
     placenameTutorialOverlay.hidden = true;
+    placenameToolsEl.hidden = true;
+    placenameCatchupPanel.hidden = true;
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) {
       const dayLabel = activeChallengeDate ? `補玩 ${formatDisplayDate(activeChallengeDate)}` : "今日挑戰";
@@ -1069,7 +1085,10 @@
     applyMode(true);
   });
   modePlacenameBtn.addEventListener("click", () => {
-    if (placenameMode) return;
+    // already showing today's placename challenge -- no-op, same reasoning
+    // as modeChallengeBtn above
+    if (placenameMode && !activePlacenameDate) return;
+    activePlacenameDate = null; // clicking the tab always resets to today
     enterPlacenameMode();
   });
 
@@ -1078,7 +1097,7 @@
   // change while it's closed, but this keeps it trivially in sync with
   // localStorage rather than needing its own invalidation logic).
   function renderCatchupList() {
-    const history = loadChallengeHistory();
+    const history = loadHistory(CHALLENGE_HISTORY_KEY);
     catchupListEl.innerHTML = "";
     for (const dateStr of pastDateStrings(CATCHUP_WINDOW_DAYS)) {
       const variant = variantForDateString(dateStr);
@@ -1139,9 +1158,14 @@
     placenameFeedbackEl.hidden = false;
     placenameControlsEl.hidden = false;
     placenameResultPanelEl.hidden = true;
+    placenameToolsEl.hidden = false;
+    placenameBackToTodayBtn.hidden = !activePlacenameDate;
+    placenameCatchupPanel.hidden = true; // always close the picker when (re)entering
     updateRotateHint();
 
-    placenameQuestions = todaysPlacenames();
+    placenameQuestions = activePlacenameDate
+      ? placenameQuestionsForDate(activePlacenameDate)
+      : todaysPlacenames();
     placenameQuestionIndex = 0;
     placenameAvailableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
     placenameResults = [];
@@ -1163,9 +1187,49 @@
     markPlacenameTutorialSeen();
   });
 
+  // ---- Catch-up: replay a past day's placename challenge -----------------
+  // Same idea as the draw challenge's catch-up list (renderCatchupList()
+  // above): rebuilt fresh each time it's opened, one row per past day
+  // showing that day's 5 names and whether it's already been played.
+  function renderPlacenameCatchupList() {
+    const history = loadHistory(PLACENAME_HISTORY_KEY);
+    placenameCatchupListEl.innerHTML = "";
+    for (const dateStr of pastDateStrings(CATCHUP_WINDOW_DAYS)) {
+      const questions = placenameQuestionsForDate(dateStr);
+      const entry = history[dateStr];
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "catchup-item" + (entry ? " done" : "");
+      const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
+      item.innerHTML =
+        `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
+        `<span class="catchup-summary">${questions.map((q) => q.name).join("・")}</span>` +
+        `<span class="catchup-status">${statusText}</span>`;
+      item.addEventListener("click", () => {
+        activePlacenameDate = dateStr;
+        enterPlacenameMode();
+      });
+      placenameCatchupListEl.appendChild(item);
+    }
+  }
+
+  placenameCatchupBtn.addEventListener("click", () => {
+    if (placenameCatchupPanel.hidden) renderPlacenameCatchupList();
+    placenameCatchupPanel.hidden = !placenameCatchupPanel.hidden;
+  });
+  placenameCatchupCloseBtn.addEventListener("click", () => {
+    placenameCatchupPanel.hidden = true;
+  });
+  placenameBackToTodayBtn.addEventListener("click", () => {
+    activePlacenameDate = null;
+    enterPlacenameMode();
+  });
+
   function startPlacenameQuestion() {
     const q = placenameQuestions[placenameQuestionIndex];
-    placenameQuestionEl.textContent = `📍 第 ${placenameQuestionIndex + 1} 題／${placenameQuestions.length}：${q.name}`;
+    const dayLabel = activePlacenameDate ? `補玩 ${formatDisplayDate(activePlacenameDate)}・` : "";
+    placenameQuestionEl.textContent =
+      `📍 ${dayLabel}第 ${placenameQuestionIndex + 1} 題／${placenameQuestions.length}：${q.name}`;
     placenameSelectedTierIndex = null;
     placenameCirclePx = null;
     placenameAnswered = false;
@@ -1299,6 +1363,8 @@
     const [grade, message] = gradeFor(pct, PLACENAME_GRADE_MESSAGES);
     const { records, isNewBest } = recordAttempt(PLACENAME_RECORDS_KEY, pct, grade);
     updateBestScoreDisplay(records, "🏆 地名挑戰最高");
+    const targetDate = activePlacenameDate || getTaipeiDateString();
+    recordHistoryEntry(PLACENAME_HISTORY_KEY, targetDate, pct, grade);
     renderPlacenameResults(totalPoints, pct, grade, message, isNewBest);
   }
 
@@ -1816,7 +1882,7 @@
       // Recorded under the challenge's own date (today's, or the day being
       // caught up on) so the catch-up picker can show it as done.
       const targetDate = activeChallengeDate || getTaipeiDateString();
-      recordChallengeHistoryEntry(targetDate, scores.overall, grade);
+      recordHistoryEntry(CHALLENGE_HISTORY_KEY, targetDate, scores.overall, grade);
     }
     renderResult(points, scores, grade, message, isNewBest);
     lastResult = { scores, grade, message };

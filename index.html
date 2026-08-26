@@ -9,7 +9,7 @@
      enough that without a cache-busting query string, a deploy can take a
      long time (or a manual hard-refresh) to actually reach a returning
      visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <header>
@@ -50,6 +50,16 @@
         顯示縣市名稱與界線
       </label>
       <button id="placename-help-btn" class="hint" type="button">❓ 怎麼玩？</button>
+    </div>
+
+    <div id="placename-tools" hidden>
+      <button id="placename-catchup-btn" type="button">📅 補玩錯過的挑戰</button>
+      <button id="placename-back-to-today-btn" type="button" hidden>↩️ 返回今天</button>
+    </div>
+    <div id="placename-catchup-panel" hidden>
+      <p class="catchup-panel-title">選擇想補玩的日期：</p>
+      <div id="placename-catchup-list"></div>
+      <button id="placename-catchup-close-btn" type="button">關閉</button>
     </div>
 
     <div id="placename-tutorial-overlay" hidden>
@@ -132,8 +142,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=10"></script>
-  <script src="records.js?v=10"></script>
-  <script src="game.js?v=10"></script>
+  <script src="taiwan-data.js?v=11"></script>
+  <script src="records.js?v=11"></script>
+  <script src="game.js?v=11"></script>
 </body>
 </html>
