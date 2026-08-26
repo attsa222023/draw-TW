@@ -1191,26 +1191,32 @@
   // Same idea as the draw challenge's catch-up list (renderCatchupList()
   // above): rebuilt fresh each time it's opened, one row per past day
   // showing that day's 5 names and whether it's already been played.
+  // Shorter than the draw challenge's 30-day window, and deliberately
+  // doesn't preview that day's actual place names (see the numbered
+  // label below) -- showing them ahead of time would spoil the challenge.
+  const PLACENAME_CATCHUP_WINDOW_DAYS = 7;
+
   function renderPlacenameCatchupList() {
     const history = loadHistory(PLACENAME_HISTORY_KEY);
     placenameCatchupListEl.innerHTML = "";
-    for (const dateStr of pastDateStrings(CATCHUP_WINDOW_DAYS)) {
-      const questions = placenameQuestionsForDate(dateStr);
+    const dates = pastDateStrings(PLACENAME_CATCHUP_WINDOW_DAYS);
+    dates.forEach((dateStr, i) => {
       const entry = history[dateStr];
       const item = document.createElement("button");
       item.type = "button";
       item.className = "catchup-item" + (entry ? " done" : "");
       const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
+      const label = String(i + 1).padStart(3, "0");
       item.innerHTML =
         `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
-        `<span class="catchup-summary">${questions.map((q) => q.name).join("・")}</span>` +
+        `<span class="catchup-summary">第 ${label} 組</span>` +
         `<span class="catchup-status">${statusText}</span>`;
       item.addEventListener("click", () => {
         activePlacenameDate = dateStr;
         enterPlacenameMode();
       });
       placenameCatchupListEl.appendChild(item);
-    }
+    });
   }
 
   placenameCatchupBtn.addEventListener("click", () => {
