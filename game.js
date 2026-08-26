@@ -90,11 +90,11 @@
 
   // ---- Daily challenge --------------------------------------------------
   // Deterministic per-day variant: either the map is rotated by a fixed
-  // angle (north no longer up), or the labeled reference point is swapped
-  // from the northernmost tip to the south/east/west extreme or a city.
-  // Seeded from today's date in Taipei time, so it's the same for everyone
-  // playing "today" and changes every day regardless of the player's own
-  // timezone.
+  // angle (north no longer up), or two reference candidates (point
+  // landmarks, rivers, mountain ranges) are drawn together in place of the
+  // usual single north-point marker. Seeded from today's date in Taipei
+  // time, so it's the same for everyone playing "today" and changes every
+  // day regardless of the player's own timezone.
   function hashString(str) {
     let h = 0;
     for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
@@ -116,38 +116,109 @@
 
   const ROTATION_ANGLES = [30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
 
-  function buildDailyVariantPool() {
-    const pool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
-    const anchorPoints = [
-      { label: SOUTH_LABEL, point: southPoint },
-      { label: EAST_LABEL, point: eastPoint },
-      { label: WEST_LABEL, point: westPoint },
+  // Point-type reference candidates: the 3 non-north extremes, every major
+  // city, and every landmark -- each tagged with whether it qualifies as a
+  // boundary "起點" (see isCoastal()).
+  function buildPointCandidates() {
+    const points = [
+      { kind: "point", label: SOUTH_LABEL, point: southPoint },
+      { kind: "point", label: EAST_LABEL, point: eastPoint },
+      { kind: "point", label: WEST_LABEL, point: westPoint },
     ];
     for (const city of TAIWAN_CITIES) {
-      anchorPoints.push({ label: city.name, point: { lon: city.lon, lat: city.lat } });
+      points.push({ kind: "point", label: city.name, point: { lon: city.lon, lat: city.lat } });
     }
     for (const landmark of TAIWAN_LANDMARKS) {
-      anchorPoints.push({ label: landmark.name, point: { lon: landmark.lon, lat: landmark.lat } });
+      points.push({ kind: "point", label: landmark.name, point: { lon: landmark.lon, lat: landmark.lat } });
     }
-    for (const a of anchorPoints) {
-      pool.push({ type: "anchor", label: a.label, point: a.point, coastal: isCoastal(a.point.lon, a.point.lat) });
+    for (const p of points) p.coastal = isCoastal(p.point.lon, p.point.lat);
+    return points;
+  }
+
+  function buildLineCandidates() {
+    const lines = [];
+    for (const river of TAIWAN_RIVERS) lines.push({ kind: "river", label: river.name, path: river.path });
+    for (const range of TAIWAN_MOUNTAIN_RANGES) lines.push({ kind: "mountain", label: range.name, path: range.path });
+    return lines;
+  }
+
+  // Two point-type candidates landing too close together would read as one
+  // redundant blob rather than two distinct references, so pairs closer
+  // than this are skipped when building the pool. Not applied against
+  // river/mountain candidates -- a line spanning a big chunk of the island
+  // legitimately passes near all sorts of points, that's not "overlap".
+  const MIN_PAIR_SPACING_KM = 15;
+
+  function pointDistanceKm(a, b) {
+    const pa = projectKm(a.point.lon, a.point.lat);
+    const pb = projectKm(b.point.lon, b.point.lat);
+    return Math.hypot(pa.x - pb.x, pa.y - pb.y);
+  }
+
+  // Every unordered pair of two distinct reference candidates (point,
+  // river, or mountain), minus overlapping point-pairs. This is what
+  // actually generates most of the pool's size: with ~60 individual
+  // candidates, that's on the order of a couple thousand combinations.
+  function buildReferencePairs() {
+    const candidates = buildPointCandidates().concat(buildLineCandidates());
+    const pairs = [];
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = i + 1; j < candidates.length; j++) {
+        const a = candidates[i];
+        const b = candidates[j];
+        if (a.kind === "point" && b.kind === "point" && pointDistanceKm(a, b) < MIN_PAIR_SPACING_KM) continue;
+        pairs.push({ type: "pair", a, b });
+      }
     }
-    for (const river of TAIWAN_RIVERS) pool.push({ type: "river", label: river.name, path: river.path });
-    for (const range of TAIWAN_MOUNTAIN_RANGES) pool.push({ type: "mountain", label: range.name, path: range.path });
-    return pool;
+    return pairs;
+  }
+
+  function buildDailyVariantPool() {
+    const rotatePool = ROTATION_ANGLES.map((angle) => ({ type: "rotate", angle }));
+    return rotatePool.concat(buildReferencePairs());
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
   // `let` (not `const`) only so the TEMP QA TOOL below can override it for
   // review purposes; nothing else in the app ever reassigns this.
   let todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
 
+  // Turns a "pair" variant's two raw candidates into what actually gets
+  // drawn: a list of point markers (each with a role) and a list of
+  // river/mountain overlays. Shared by applyMode() (drawing) and
+  // describeTodayVariant() (the challenge-desc text) so the two can never
+  // drift out of sync with each other.
+  //
+  // Role assignment: a candidate that qualifies as a boundary "起點"
+  // (coastal) stays "起點" -- UNLESS the other candidate is ALSO coastal,
+  // in which case one becomes "中繼點" (waypoint) instead, so the player
+  // never sees two markers both claiming to be "the" start. A non-coastal
+  // point is always "參考點". River/mountain candidates are never point
+  // markers; if BOTH picks are lines, there's no point marker at all that
+  // day (same as an old river/mountain-only day had no start marker).
+  function resolvePairRoles(variant) {
+    const items = [variant.a, variant.b];
+    const points = items.filter((it) => it.kind === "point");
+    const lines = items.filter((it) => it.kind !== "point");
+    const coastalPoints = points.filter((it) => it.coastal);
+    const otherPoints = points.filter((it) => !it.coastal);
+
+    const markers = [];
+    if (coastalPoints.length === 2) {
+      markers.push({ point: coastalPoints[0].point, label: coastalPoints[0].label, style: "起點" });
+      markers.push({ point: coastalPoints[1].point, label: coastalPoints[1].label, style: "中繼點" });
+    } else {
+      for (const p of coastalPoints) markers.push({ point: p.point, label: p.label, style: "起點" });
+      for (const p of otherPoints) markers.push({ point: p.point, label: p.label, style: "參考點" });
+    }
+    return { markers, features: lines };
+  }
+
   function describeTodayVariant() {
     if (todayVariant.type === "rotate") return `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`;
-    if (todayVariant.type === "river") return `畫布上多了一條參考河流：${todayVariant.label}`;
-    if (todayVariant.type === "mountain") return `畫布上多了一條參考山脈：${todayVariant.label}`;
-    return todayVariant.coastal
-      ? `起點換成「${todayVariant.label}」，不是最北端`
-      : `標示「${todayVariant.label}」在島內的參考位置，不是起點`;
+    const { markers, features } = resolvePairRoles(todayVariant);
+    const parts = markers.map((m) => `${m.style}「${m.label}」`);
+    for (const f of features) parts.push(`參考${f.kind === "river" ? "河流" : "山脈"}「${f.label}」`);
+    return `今日參考：${parts.join("、")}`;
   }
 
   // ---- Canvas / DOM setup --------------------------------------------------
@@ -245,19 +316,13 @@
   }
   let showSouthMarker = loadShowSouthMarker();
 
-  // Today's primary reference point/label -- the true north tip in normal
-  // mode and on "rotate" challenge days, or the daily alternate point on
-  // "anchor" challenge days. `coastal: true` points sit on (or very near)
-  // the actual outline and are framed as "起點" (a boundary start point);
-  // inland cities are framed as "參考點" (an internal reference point)
-  // instead, since labeling e.g. Taipei -- ~17km from the coast -- as a
-  // start point would look wrong sitting in the middle of the shape. Set
-  // by applyMode().
-  let primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
-  // Set alongside primaryMarker by applyMode() on a "river"/"mountain"
-  // challenge day -- an extra overlay drawn on top of the usual scale
-  // bar/marker setup, not a replacement for it. null the rest of the time.
-  let activeFeature = null;
+  // Today's point markers ({point, label, style}, style one of
+  // 起點/中繼點/參考點) and line overlays ({kind, path, label}, kind one of
+  // river/mountain) -- 1 point marker (north) in normal mode and on a
+  // "rotate" day, 0-2 of each on a "pair" day depending on
+  // resolvePairRoles(). Set by applyMode(), drawn by drawBackground().
+  let markersToShow = [{ point: northPoint, label: NORTH_LABEL, style: "起點" }];
+  let featuresToShow = [];
   let challengeMode = false;
 
   // Rounded-rect helper for the small background pill behind river/mountain
@@ -441,33 +506,34 @@
     bgCtx.textAlign = "left";
     bgCtx.fillText(`${SCALE_BAR_KM} 公里`, barX, barY - 12);
 
-    // primary reference-point marker (north normally, or today's variant) --
-    // skipped on a river/mountain day, since the whole point of that
-    // challenge is navigating by the overlay alone, without the usual
-    // start-point crutch (otherwise it'd have strictly more hints than
-    // normal mode, not fewer, once the extra overlay is added on top)
-    if (!activeFeature) {
-      const primaryPx = toCanvas(primaryMarker.point.lon, primaryMarker.point.lat);
-      const primaryRole = primaryMarker.coastal ? "起點" : "參考點";
-      drawPointMarker(primaryPx, "#ffb703", `${primaryRole}：${primaryMarker.label}`, primaryMarker.coastal);
+    // Point markers for today (north normally; 0-2 on a "pair" challenge
+    // day, see resolvePairRoles()). 起點/中繼點 render as a gold/teal
+    // circle (they sit on the boundary); 參考點 renders as a gold diamond.
+    for (const m of markersToShow) {
+      const px = toCanvas(m.point.lon, m.point.lat);
+      const color = m.style === "中繼點" ? "#4fd1c5" : "#ffb703";
+      const isCircle = m.style !== "參考點";
+      drawPointMarker(px, color, `${m.style}：${m.label}`, isCircle);
     }
 
     // Bonus secondary south marker -- skipped if it would just duplicate
-    // the primary marker (i.e. today's variant IS south). Its visibility
-    // isn't the player's checkbox once in challenge mode: fixed ON for a
-    // rotate day (a extra orientation aid on top of the rotated view), and
-    // fixed OFF for every other challenge type (river/mountain/anchor) --
-    // south only shows up there when it's actually the day's chosen
-    // reference point, drawn via the primary marker above, not as a bonus.
-    // Normal mode still respects the player's own toggle.
+    // one of today's markers (e.g. south IS one of the pair). Its
+    // visibility isn't the player's checkbox once in challenge mode: fixed
+    // ON for a rotate day (an extra orientation aid on top of the rotated
+    // view), fixed OFF for a "pair" day -- south only shows up there when
+    // it's actually one of the day's chosen references, drawn above, not
+    // as a bonus. Normal mode still respects the player's own toggle.
     const showSouthAsBonus = challengeMode ? todayVariant.type === "rotate" : showSouthMarker;
-    if (showSouthAsBonus && primaryMarker.point !== southPoint) {
+    const southAlreadyShown = markersToShow.some((m) => m.point === southPoint);
+    if (showSouthAsBonus && !southAlreadyShown) {
       drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", SOUTH_LABEL, true);
     }
 
-    // river/mountain daily-challenge overlay, if today's variant is one
-    if (activeFeature && activeFeature.type === "river") drawRiverLine(activeFeature.path, activeFeature.label);
-    if (activeFeature && activeFeature.type === "mountain") drawMountainRange(activeFeature.path, activeFeature.label);
+    // river/mountain overlay(s) for today, if any
+    for (const f of featuresToShow) {
+      if (f.kind === "river") drawRiverLine(f.path, f.label);
+      if (f.kind === "mountain") drawMountainRange(f.path, f.label);
+    }
   }
 
   const southMarkerToggle = document.getElementById("south-marker-toggle");
@@ -596,22 +662,19 @@
 
     if (isChallenge && todayVariant.type === "rotate") {
       configureProjection(todayVariant.angle);
-      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
-      activeFeature = null;
-    } else if (isChallenge && (todayVariant.type === "river" || todayVariant.type === "mountain")) {
-      // river/mountain days keep the normal north-point marker + scale bar
-      // and just add the line/emoji overlay on top -- not a replacement
-      configureProjection(0);
-      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
-      activeFeature = todayVariant;
+      markersToShow = [{ point: northPoint, label: NORTH_LABEL, style: "起點" }];
+      featuresToShow = [];
     } else if (isChallenge) {
-      configureProjection(0, [todayVariant.point]);
-      primaryMarker = { label: todayVariant.label, point: todayVariant.point, coastal: todayVariant.coastal };
-      activeFeature = null;
+      // "pair" day: 0-2 point markers + 0-2 river/mountain overlays,
+      // depending on what today's two candidates turned out to be
+      const { markers, features } = resolvePairRoles(todayVariant);
+      configureProjection(0, markers.map((m) => m.point));
+      markersToShow = markers;
+      featuresToShow = features;
     } else {
       configureProjection(0);
-      primaryMarker = { label: NORTH_LABEL, point: northPoint, coastal: true };
-      activeFeature = null;
+      markersToShow = [{ point: northPoint, label: NORTH_LABEL, style: "起點" }];
+      featuresToShow = [];
     }
 
     strokes = [];
@@ -636,11 +699,12 @@
     // showSouthAsBonus logic in drawBackground) -- hide it there instead
     // of leaving a control that looks interactive but silently does nothing
     southToggleLabel.hidden = isChallenge;
-    // no start-point hint to show on a river/mountain day -- the marker
-    // itself is skipped in drawBackground() for the same reason
-    startHintEl.hidden = !!activeFeature;
-    if (!activeFeature) {
-      startHintEl.textContent = `📍 ${primaryMarker.coastal ? "起點" : "參考點"}：${primaryMarker.label}`;
+    // no start-point hint to show on a day with zero point markers (both
+    // of today's pair are rivers/mountains) -- their overlay speaks for
+    // itself via challengeDescEl
+    startHintEl.hidden = markersToShow.length === 0;
+    if (markersToShow.length > 0) {
+      startHintEl.textContent = "📍 " + markersToShow.map((m) => `${m.style}：${m.label}`).join("・");
     }
     updateRotateHint();
 
