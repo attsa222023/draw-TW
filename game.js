@@ -95,12 +95,6 @@
   // usual single north-point marker. Seeded from today's date in Taipei
   // time, so it's the same for everyone playing "today" and changes every
   // day regardless of the player's own timezone.
-  function hashString(str) {
-    let h = 0;
-    for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-    return h >>> 0;
-  }
-
   function getTaipeiDateString() {
     try {
       return new Intl.DateTimeFormat("en-CA", {
@@ -178,7 +172,67 @@
     return rotatePool.concat(buildReferencePairs());
   }
   const DAILY_VARIANT_POOL = buildDailyVariantPool();
-  const todayVariant = DAILY_VARIANT_POOL[hashString(getTaipeiDateString()) % DAILY_VARIANT_POOL.length];
+
+  // ---- Day -> variant mapping, no repeats until the whole pool is used --
+  // A plain hash-mod pick (the original approach) doesn't guarantee variety:
+  // with ~1822 entries, by the birthday paradox a repeat becomes likely
+  // long before every entry has actually appeared once. Instead, days are
+  // grouped into "cycles" of exactly poolSize days; each cycle gets its own
+  // shuffled permutation of every pool index (seeded from the cycle
+  // number via a small deterministic PRNG), so within one cycle every
+  // variant appears exactly once, and the next cycle (poolSize days later,
+  // ~5 years at the current size) gets an independently-reshuffled order
+  // rather than repeating the same sequence.
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffledIndices(n, seed) {
+    const arr = Array.from({ length: n }, (_, i) => i);
+    const rand = mulberry32(seed);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Days since the Unix epoch for a "YYYY-MM-DD" string, and back again --
+  // both via Date.UTC/getUTC* (never the local browser timezone) so this
+  // is a pure calendar-date calculation, independent of the player's own
+  // timezone (the date string itself is already a Taipei calendar date).
+  function dateStringToDayIndex(dateStr) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+  }
+
+  function dayIndexToDateString(dayIndex) {
+    const dt = new Date(dayIndex * 86400000);
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function variantForDayIndex(dayIndex) {
+    const poolSize = DAILY_VARIANT_POOL.length;
+    const cycle = Math.floor(dayIndex / poolSize);
+    const positionInCycle = ((dayIndex % poolSize) + poolSize) % poolSize;
+    const order = shuffledIndices(poolSize, cycle);
+    return DAILY_VARIANT_POOL[order[positionInCycle]];
+  }
+
+  function variantForDateString(dateStr) {
+    return variantForDayIndex(dateStringToDayIndex(dateStr));
+  }
+
+  const todayVariant = variantForDateString(getTaipeiDateString());
 
   // Turns a "pair" variant's two raw candidates into what actually gets
   // drawn: a list of point markers (each with a role) and a list of
@@ -211,12 +265,42 @@
     return { markers, features: lines };
   }
 
-  function describeTodayVariant() {
-    if (todayVariant.type === "rotate") return `地圖旋轉了 ${todayVariant.angle}°，北方不再朝上`;
-    const { markers, features } = resolvePairRoles(todayVariant);
+  function describeVariant(variant) {
+    if (variant.type === "rotate") return `地圖旋轉了 ${variant.angle}°，北方不再朝上`;
+    const { markers, features } = resolvePairRoles(variant);
     const parts = markers.map((m) => `${m.style}「${m.label}」`);
     for (const f of features) parts.push(`參考${f.kind === "river" ? "河流" : "山脈"}「${f.label}」`);
     return `今日參考：${parts.join("、")}`;
+  }
+
+  // Compact one-line summary for a catch-up list row (no role/prefix
+  // wording, just enough to recognize the day at a glance).
+  function describeVariantShort(variant) {
+    if (variant.type === "rotate") return `🔄 旋轉 ${variant.angle}°`;
+    const { markers, features } = resolvePairRoles(variant);
+    const parts = markers.map((m) => m.label).concat(features.map((f) => f.label));
+    return parts.join("・");
+  }
+
+  // How many past days the catch-up picker offers. Well under the pool
+  // size (so "no repeats" never becomes a visible concern there) and a
+  // reasonable amount to scroll through for "I missed a few days".
+  const CATCHUP_WINDOW_DAYS = 30;
+
+  // Past CATCHUP_WINDOW_DAYS date strings, most recent (yesterday) first.
+  // Never includes today -- that's played via the normal challenge button.
+  function pastDateStrings(n) {
+    const todayIdx = dateStringToDayIndex(getTaipeiDateString());
+    const out = [];
+    for (let i = 1; i <= n; i++) out.push(dayIndexToDateString(todayIdx - i));
+    return out;
+  }
+
+  function formatDisplayDate(dateStr) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const weekday = new Intl.DateTimeFormat("zh-Hant", { weekday: "narrow", timeZone: "UTC" }).format(dt);
+    return `${m}/${d} (${weekday})`;
   }
 
   // ---- Canvas / DOM setup --------------------------------------------------
@@ -322,6 +406,17 @@
   let markersToShow = [{ point: northPoint, label: NORTH_LABEL, style: "起點" }];
   let featuresToShow = [];
   let challengeMode = false;
+
+  // Catch-up state: null means "today's challenge"; otherwise a
+  // "YYYY-MM-DD" Taipei date string for a past day being replayed. Kept
+  // separate from `challengeMode` so entering/leaving challenge mode is
+  // orthogonal to which day within it is being played.
+  let activeChallengeDate = null;
+  // The variant actually resolved for what's currently on screen -- today's
+  // or activeChallengeDate's -- set by applyMode() and read by
+  // drawBackground() so it doesn't have to redo the day->variant lookup
+  // (which reshuffles the whole pool) on every redraw.
+  let activeVariant = null;
 
   // Rounded-rect helper for the small background pill behind river/mountain
   // labels, so the label stays legible over the wave texture/ocean gradient.
@@ -521,7 +616,7 @@
     // view), fixed OFF for a "pair" day -- south only shows up there when
     // it's actually one of the day's chosen references, drawn above, not
     // as a bonus. Normal mode still respects the player's own toggle.
-    const showSouthAsBonus = challengeMode ? todayVariant.type === "rotate" : showSouthMarker;
+    const showSouthAsBonus = challengeMode ? activeVariant.type === "rotate" : showSouthMarker;
     const southAlreadyShown = markersToShow.some((m) => m.point === southPoint);
     if (showSouthAsBonus && !southAlreadyShown) {
       drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", SOUTH_LABEL, true);
@@ -638,6 +733,12 @@
   const modeNormalBtn = document.getElementById("mode-normal-btn");
   const modeChallengeBtn = document.getElementById("mode-challenge-btn");
   const challengeDescEl = document.getElementById("challenge-desc");
+  const challengeToolsEl = document.getElementById("challenge-tools");
+  const catchupBtn = document.getElementById("catchup-btn");
+  const backToTodayBtn = document.getElementById("back-to-today-btn");
+  const catchupPanel = document.getElementById("catchup-panel");
+  const catchupListEl = document.getElementById("catchup-list");
+  const catchupCloseBtn = document.getElementById("catchup-close-btn");
 
   let lastResult = null; // {scores, grade, message} for the download-card button
 
@@ -656,15 +757,20 @@
   // every mode-dependent bit of UI.
   function applyMode(isChallenge) {
     challengeMode = isChallenge;
+    activeVariant = isChallenge
+      ? activeChallengeDate
+        ? variantForDateString(activeChallengeDate)
+        : todayVariant
+      : null;
 
-    if (isChallenge && todayVariant.type === "rotate") {
-      configureProjection(todayVariant.angle);
+    if (isChallenge && activeVariant.type === "rotate") {
+      configureProjection(activeVariant.angle);
       markersToShow = [{ point: northPoint, label: NORTH_LABEL, style: "起點" }];
       featuresToShow = [];
     } else if (isChallenge) {
       // "pair" day: 0-2 point markers + 0-2 river/mountain overlays,
       // depending on what today's two candidates turned out to be
-      const { markers, features } = resolvePairRoles(todayVariant);
+      const { markers, features } = resolvePairRoles(activeVariant);
       configureProjection(0, markers.map((m) => m.point));
       markersToShow = markers;
       featuresToShow = features;
@@ -690,11 +796,17 @@
     modeNormalBtn.classList.toggle("active", !isChallenge);
     modeChallengeBtn.classList.toggle("active", isChallenge);
     challengeDescEl.hidden = !isChallenge;
-    if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
+    if (isChallenge) {
+      const dayLabel = activeChallengeDate ? `補玩 ${formatDisplayDate(activeChallengeDate)}` : "今日挑戰";
+      challengeDescEl.textContent = `🗓️ ${dayLabel}：${describeVariant(activeVariant)}`;
+    }
     // the checkbox no longer does anything in challenge mode (see the
     // showSouthAsBonus logic in drawBackground) -- hide it there instead
     // of leaving a control that looks interactive but silently does nothing
     southToggleLabel.hidden = isChallenge;
+    challengeToolsEl.hidden = !isChallenge;
+    backToTodayBtn.hidden = !activeChallengeDate;
+    catchupPanel.hidden = true; // always close the picker when (re)applying a mode
     // no start-point hint to show on a day with zero point markers (both
     // of today's pair are rivers/mountains) -- their overlay speaks for
     // itself via challengeDescEl
@@ -713,7 +825,49 @@
     applyMode(false);
   });
   modeChallengeBtn.addEventListener("click", () => {
-    if (challengeMode) return;
+    // already showing today's challenge -- no-op, don't discard a
+    // drawing in progress just because the (already-active) tab was
+    // clicked again
+    if (challengeMode && !activeChallengeDate) return;
+    activeChallengeDate = null; // clicking the tab always resets to today
+    applyMode(true);
+  });
+
+  // ---- Catch-up: replay a past day's challenge ---------------------------
+  // Builds the picker list fresh each time it's opened (dates/history don't
+  // change while it's closed, but this keeps it trivially in sync with
+  // localStorage rather than needing its own invalidation logic).
+  function renderCatchupList() {
+    const history = loadChallengeHistory();
+    catchupListEl.innerHTML = "";
+    for (const dateStr of pastDateStrings(CATCHUP_WINDOW_DAYS)) {
+      const variant = variantForDateString(dateStr);
+      const entry = history[dateStr];
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "catchup-item" + (entry ? " done" : "");
+      const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
+      item.innerHTML =
+        `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
+        `<span class="catchup-summary">${describeVariantShort(variant)}</span>` +
+        `<span class="catchup-status">${statusText}</span>`;
+      item.addEventListener("click", () => {
+        activeChallengeDate = dateStr;
+        applyMode(true);
+      });
+      catchupListEl.appendChild(item);
+    }
+  }
+
+  catchupBtn.addEventListener("click", () => {
+    if (catchupPanel.hidden) renderCatchupList();
+    catchupPanel.hidden = !catchupPanel.hidden;
+  });
+  catchupCloseBtn.addEventListener("click", () => {
+    catchupPanel.hidden = true;
+  });
+  backToTodayBtn.addEventListener("click", () => {
+    activeChallengeDate = null;
     applyMode(true);
   });
 
@@ -1181,6 +1335,12 @@
     const recordsKey = challengeMode ? CHALLENGE_RECORDS_KEY : RECORDS_KEY;
     const { records, isNewBest } = recordAttempt(recordsKey, scores.overall, grade);
     updateBestScoreDisplay(records, challengeMode);
+    if (challengeMode) {
+      // Recorded under the challenge's own date (today's, or the day being
+      // caught up on) so the catch-up picker can show it as done.
+      const targetDate = activeChallengeDate || getTaipeiDateString();
+      recordChallengeHistoryEntry(targetDate, scores.overall, grade);
+    }
     renderResult(points, scores, grade, message, isNewBest);
     lastResult = { scores, grade, message };
 

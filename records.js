@@ -7,6 +7,10 @@
 // mode's) can keep separate best-score tracks.
 const RECORDS_KEY = "drawTaiwanRecords";
 const CHALLENGE_RECORDS_KEY = "drawTaiwanChallengeRecords";
+// Per-date daily-challenge results ({ "YYYY-MM-DD": {score, grade} }), used
+// by the catch-up picker to show which past days have already been played.
+// Separate from CHALLENGE_RECORDS_KEY's single running best-score record.
+const CHALLENGE_HISTORY_KEY = "drawTaiwanChallengeHistory";
 
 function loadRecords(key) {
   try {
@@ -40,4 +44,31 @@ function recordAttempt(key, scorePct, grade) {
     // score just won't persist this session
   }
   return { records, isNewBest };
+}
+
+function loadChallengeHistory() {
+  try {
+    const raw = localStorage.getItem(CHALLENGE_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// Records this player's result for a specific daily-challenge date (not
+// necessarily today -- a catch-up replay of a missed day records under
+// that day's own date instead). Keeps the best score/grade per date, same
+// "best sticks" rule as recordAttempt()'s running best.
+function recordChallengeHistoryEntry(dateStr, scorePct, grade) {
+  const history = loadChallengeHistory();
+  const existing = history[dateStr];
+  if (!existing || scorePct > existing.score) {
+    history[dateStr] = { score: scorePct, grade };
+    try {
+      localStorage.setItem(CHALLENGE_HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+      // history just won't persist this session
+    }
+  }
+  return history;
 }
