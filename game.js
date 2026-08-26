@@ -452,9 +452,16 @@
       drawPointMarker(primaryPx, "#ffb703", `${primaryRole}：${primaryMarker.label}`, primaryMarker.coastal);
     }
 
-    // optional secondary south marker -- skipped if it would just
-    // duplicate the primary marker (i.e. today's variant IS south)
-    if (showSouthMarker && primaryMarker.point !== southPoint) {
+    // Bonus secondary south marker -- skipped if it would just duplicate
+    // the primary marker (i.e. today's variant IS south). Its visibility
+    // isn't the player's checkbox once in challenge mode: fixed ON for a
+    // rotate day (a extra orientation aid on top of the rotated view), and
+    // fixed OFF for every other challenge type (river/mountain/anchor) --
+    // south only shows up there when it's actually the day's chosen
+    // reference point, drawn via the primary marker above, not as a bonus.
+    // Normal mode still respects the player's own toggle.
+    const showSouthAsBonus = challengeMode ? todayVariant.type === "rotate" : showSouthMarker;
+    if (showSouthAsBonus && primaryMarker.point !== southPoint) {
       drawPointMarker(toCanvas(southPoint.lon, southPoint.lat), "#4fd1c5", SOUTH_LABEL, true);
     }
 
@@ -464,6 +471,7 @@
   }
 
   const southMarkerToggle = document.getElementById("south-marker-toggle");
+  const southToggleLabel = document.getElementById("south-toggle-label");
   southMarkerToggle.checked = showSouthMarker;
   southMarkerToggle.addEventListener("change", () => {
     showSouthMarker = southMarkerToggle.checked;
@@ -624,6 +632,10 @@
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) challengeDescEl.textContent = `🗓️ 今日挑戰：${describeTodayVariant()}`;
     qaCycleBtn.hidden = !isChallenge; // TEMP QA TOOL -- remove with the rest of this block
+    // the checkbox no longer does anything in challenge mode (see the
+    // showSouthAsBonus logic in drawBackground) -- hide it there instead
+    // of leaving a control that looks interactive but silently does nothing
+    southToggleLabel.hidden = isChallenge;
     // no start-point hint to show on a river/mountain day -- the marker
     // itself is skipped in drawBackground() for the same reason
     startHintEl.hidden = !!activeFeature;
