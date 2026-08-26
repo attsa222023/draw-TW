@@ -132,6 +132,10 @@ main {
   user-select: none;
 }
 
+.toggle-hint[hidden] {
+  display: none;
+}
+
 .toggle-hint input {
   cursor: pointer;
 }
