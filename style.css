@@ -94,6 +94,14 @@ h1 {
   margin-top: 8px;
 }
 
+/* Author `display` rules always beat the UA's default [hidden]{display:none}
+   regardless of specificity/source order -- learned the hard way with
+   .toggle-hint earlier, so every element here that's toggled via the
+   `hidden` attribute (not just a class) needs this same override. */
+#challenge-tools[hidden] {
+  display: none;
+}
+
 #catchup-btn,
 #back-to-today-btn {
   padding: 5px 12px;
