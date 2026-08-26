@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>畫出台灣</title>
-<link rel="stylesheet" href="style.css">
+<!-- Bump ?v=N on style.css/taiwan-data.js/records.js/game.js whenever any
+     of them change -- GitHub Pages' CDN + browsers cache these aggressively
+     enough that without a cache-busting query string, a deploy can take a
+     long time (or a manual hard-refresh) to actually reach a returning
+     visitor, even though the new file is live on the server. -->
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <header>
@@ -80,8 +85,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js"></script>
-  <script src="records.js"></script>
-  <script src="game.js"></script>
+  <script src="taiwan-data.js?v=2"></script>
+  <script src="records.js?v=2"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>
