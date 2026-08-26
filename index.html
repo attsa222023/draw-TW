@@ -9,7 +9,7 @@
      enough that without a cache-busting query string, a deploy can take a
      long time (or a manual hard-refresh) to actually reach a returning
      visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <header>
@@ -20,8 +20,6 @@
       <button id="mode-challenge-btn" class="mode-btn" type="button">🗓️ 每日挑戰</button>
     </div>
     <p id="challenge-desc" class="subtitle" hidden></p>
-    <!-- TEMP QA TOOL -- remove once the challenge pool has been reviewed -->
-    <button id="qa-cycle-btn" type="button" hidden>🔀 測試：換下一個 (0/0)</button>
     <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
   </header>
 
@@ -85,8 +83,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=3"></script>
-  <script src="records.js?v=3"></script>
-  <script src="game.js?v=3"></script>
+  <script src="taiwan-data.js?v=4"></script>
+  <script src="records.js?v=4"></script>
+  <script src="game.js?v=4"></script>
 </body>
 </html>
