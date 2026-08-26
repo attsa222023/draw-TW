@@ -324,16 +324,56 @@
   const PLACENAME_QUESTIONS_PER_DAY = 5;
   const PLACENAME_MAX_SCORE = PLACENAME_CIRCLE_TIERS.reduce((sum, t) => sum + t.points, 0);
 
-  // For now the test pool IS exactly one day's worth of questions, so
-  // "today's 5" is just the whole pool in a daily-shuffled order (reusing
-  // the same shuffledIndices/date machinery as the draw-challenge pool).
-  // Once a real, larger pool exists, this becomes "pick N of the pool"
-  // instead -- everything else in this mode is already written generically
-  // against "however many questions came back" so that swap won't ripple.
+  // Which PLACENAME_POOL size applies to a given day. Growing the pool
+  // (appending to PLACENAME_POOL in taiwan-data.js) must never change a
+  // question that's already been shown -- including today's, if the
+  // growth ships before the player's next visit -- so each day resolves
+  // against whatever poolSize was in effect as of ITS OWN epoch, not
+  // however large the array happens to be right now.
+  //
+  // IMPORTANT -- when appending to PLACENAME_POOL later: add a new entry
+  // here too, with fromDayIndex = dateStringToDayIndex(<the date the
+  // deploy actually goes live>) and poolSize = PLACENAME_POOL.length
+  // (the new, larger total). Do NOT edit or remove any existing entry --
+  // every day before that boundary keeps resolving against the smaller,
+  // frozen size, which is what makes appending safe. Keep entries sorted
+  // by fromDayIndex ascending.
+  const PLACENAME_POOL_EPOCHS = [
+    { fromDayIndex: -Infinity, poolSize: 314 }, // v1 pool, shipped 2026-08-27
+  ];
+
+  function placenamePoolSizeForDayIndex(dayIndex) {
+    let size = PLACENAME_POOL_EPOCHS[0].poolSize;
+    for (const epoch of PLACENAME_POOL_EPOCHS) {
+      if (epoch.fromDayIndex <= dayIndex) size = epoch.poolSize;
+      else break;
+    }
+    return size;
+  }
+
+  // Picks PLACENAME_QUESTIONS_PER_DAY distinct indices into PLACENAME_POOL
+  // for a given day, using the same no-repeat-within-a-cycle shuffle as
+  // the draw-challenge pool, but scoped to that day's frozen poolSize (see
+  // above) rather than the pool's current live length -- the actual
+  // append-safety guarantee lives in that scoping, not in this function.
+  // When poolSize isn't a multiple of 5, the last day of a cycle wraps
+  // around and repeats a few of that cycle's earlier picks rather than
+  // coming up short.
+  function placenameIndicesForDayIndex(dayIndex) {
+    const n = placenamePoolSizeForDayIndex(dayIndex);
+    const cycleLen = Math.ceil(n / PLACENAME_QUESTIONS_PER_DAY);
+    const cycle = Math.floor(dayIndex / cycleLen);
+    const positionInCycle = ((dayIndex % cycleLen) + cycleLen) % cycleLen;
+    const order = shuffledIndices(n, cycle);
+    const start = positionInCycle * PLACENAME_QUESTIONS_PER_DAY;
+    const picks = [];
+    for (let k = 0; k < PLACENAME_QUESTIONS_PER_DAY; k++) picks.push(order[(start + k) % n]);
+    return picks;
+  }
+
   function todaysPlacenames() {
-    const pool = PLACENAME_TEST_POOL;
-    const order = shuffledIndices(pool.length, dateStringToDayIndex(getTaipeiDateString()));
-    return order.map((i) => pool[i]).slice(0, PLACENAME_QUESTIONS_PER_DAY);
+    const dayIndex = dateStringToDayIndex(getTaipeiDateString());
+    return placenameIndicesForDayIndex(dayIndex).map((i) => PLACENAME_POOL[i]);
   }
 
   function computePlacenameScore(results) {
@@ -1075,7 +1115,13 @@
   function enterPlacenameMode() {
     challengeMode = false;
     placenameMode = true;
-    configureProjection(0); // always the plain, unrotated island in this mode
+    // Always the plain, unrotated island in this mode. The whole pool is
+    // passed as extraPoints (not just today's 5) so the map's size/zoom
+    // stays constant day to day regardless of which entries come up --
+    // every current entry already fits the base bounding box, but this
+    // keeps it that way automatically if a future addition (an offshore
+    // island, say) wouldn't.
+    configureProjection(0, PLACENAME_POOL);
 
     modeNormalBtn.classList.toggle("active", false);
     modeChallengeBtn.classList.toggle("active", false);
