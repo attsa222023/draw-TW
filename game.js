@@ -340,6 +340,9 @@
   // by fromDayIndex ascending.
   const PLACENAME_POOL_EPOCHS = [
     { fromDayIndex: -Infinity, poolSize: 314 }, // v1 pool, shipped 2026-08-27
+    // v2: +10 landmarks (indices 314-323), pushed 2026-08-27 but effective
+    // the next day so today's already-shown questions aren't disturbed.
+    { fromDayIndex: dateStringToDayIndex("2026-08-28"), poolSize: 324 },
   ];
 
   function placenamePoolSizeForDayIndex(dayIndex) {

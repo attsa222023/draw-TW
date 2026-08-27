@@ -573,4 +573,25 @@ const PLACENAME_POOL = [
   { name: "金峰", lon: 120.8571, lat: 22.5817 },
   { name: "達仁", lon: 120.8359, lat: 22.3843 },
   { name: "蘭嶼", lon: 121.551, lat: 22.0474 },
+  // v2 batch (indices 314-323), added 2026-08-27, effective 2026-08-28
+  // (see PLACENAME_POOL_EPOCHS in game.js) -- 10 well-known landmarks,
+  // the pool's first non-township entries. Coordinates for 日月潭/玉山/
+  // 野柳/合歡山/太魯閣/故宮南院 reuse TAIWAN_LANDMARKS' existing values
+  // above; 高美濕地/清境農場/劍湖山 from the Tourism Administration's
+  // taiwan.net.tw listings; 司馬庫斯 as sourced earlier for the original
+  // test pool. Several land within ~15km of an existing township entry
+  // (e.g. 日月潭 is only 3km from 魚池) -- expected, since a famous
+  // landmark is naturally close to its own town center, and harmless
+  // here since only one question is shown at a time (no simultaneous-
+  // marker collision like the draw challenge's daily-pair mode).
+  { name: "日月潭", lon: 120.915, lat: 23.8514 },
+  { name: "玉山", lon: 120.9598, lat: 23.4707 },
+  { name: "高美濕地", lon: 120.5498, lat: 24.312 },
+  { name: "野柳", lon: 121.6897, lat: 25.2058 },
+  { name: "合歡山", lon: 121.2792, lat: 24.1419 },
+  { name: "太魯閣", lon: 121.6215, lat: 24.1591 },
+  { name: "故宮南院", lon: 120.3193, lat: 23.4495 },
+  { name: "司馬庫斯", lon: 121.3342, lat: 24.5788 },
+  { name: "清境農場", lon: 121.1628, lat: 24.0585 },
+  { name: "劍湖山", lon: 120.5783, lat: 23.6179 },
 ];
