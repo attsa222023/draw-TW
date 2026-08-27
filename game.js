@@ -1191,22 +1191,38 @@
   // Same idea as the draw challenge's catch-up list (renderCatchupList()
   // above): rebuilt fresh each time it's opened, one row per past day
   // showing that day's 5 names and whether it's already been played.
-  // Shorter than the draw challenge's 30-day window, and deliberately
-  // doesn't preview that day's actual place names (see the numbered
-  // label below) -- showing them ahead of time would spoil the challenge.
-  const PLACENAME_CATCHUP_WINDOW_DAYS = 7;
+  // The archive should look like what it actually is -- a mode that just
+  // launched -- rather than immediately claiming a full month of history
+  // that never happened. It starts at ~1 week (as of the date below) and
+  // grows by a day every day after that, capping at the draw challenge's
+  // same 30-day window once it's actually accumulated that much.
+  const PLACENAME_CATCHUP_LAUNCH_DATE = "2026-08-20";
+  const PLACENAME_CATCHUP_MAX_WINDOW_DAYS = 30;
+
+  function placenameCatchupDateStrings() {
+    const todayIdx = dateStringToDayIndex(getTaipeiDateString());
+    const launchIdx = dateStringToDayIndex(PLACENAME_CATCHUP_LAUNCH_DATE);
+    const daysSinceLaunch = todayIdx - launchIdx;
+    const windowSize = Math.max(0, Math.min(daysSinceLaunch, PLACENAME_CATCHUP_MAX_WINDOW_DAYS));
+    return pastDateStrings(windowSize); // most recent (yesterday) first
+  }
 
   function renderPlacenameCatchupList() {
     const history = loadHistory(PLACENAME_HISTORY_KEY);
     placenameCatchupListEl.innerHTML = "";
-    const dates = pastDateStrings(PLACENAME_CATCHUP_WINDOW_DAYS);
+    const dates = placenameCatchupDateStrings(); // most recent first
+    const windowSize = dates.length;
     dates.forEach((dateStr, i) => {
       const entry = history[dateStr];
       const item = document.createElement("button");
       item.type = "button";
       item.className = "catchup-item" + (entry ? " done" : "");
       const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
-      const label = String(i + 1).padStart(3, "0");
+      // Numbered oldest -> newest regardless of the list's own (newest
+      // first) display order -- dates[i] is (i+1) days ago, so the oldest
+      // entry (i = windowSize-1) gets 001 and the newest (i = 0) gets
+      // the highest number.
+      const label = String(windowSize - i).padStart(3, "0");
       item.innerHTML =
         `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
         `<span class="catchup-summary">第 ${label} 組</span>` +
