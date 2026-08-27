@@ -343,6 +343,10 @@
     // v2: +10 landmarks (indices 314-323), pushed 2026-08-27 but effective
     // the next day so today's already-shown questions aren't disturbed.
     { fromDayIndex: dateStringToDayIndex("2026-08-28"), poolSize: 324 },
+    // v3: +10 more landmarks (indices 324-333), pushed 2026-08-27. Set to
+    // 08-29 (not 08-28, which the v2 epoch already claims) so 08-28 still
+    // gets its own full day on exactly the 324-pool before growing again.
+    { fromDayIndex: dateStringToDayIndex("2026-08-29"), poolSize: 334 },
   ];
 
   function placenamePoolSizeForDayIndex(dayIndex) {

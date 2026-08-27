@@ -594,4 +594,21 @@ const PLACENAME_POOL = [
   { name: "司馬庫斯", lon: 121.3342, lat: 24.5788 },
   { name: "清境農場", lon: 121.1628, lat: 24.0585 },
   { name: "劍湖山", lon: 120.5783, lat: 23.6179 },
+  // v3 batch (indices 324-333), added 2026-08-27, effective 2026-08-29
+  // (see PLACENAME_POOL_EPOCHS in game.js). 白沙屯/石門水庫/九份/曾文水庫
+  // reuse TAIWAN_LANDMARKS' existing values above; the rest sourced from
+  // Wikipedia/taiwan.net.tw. Several land within ~15km of an existing
+  // pool entry (天母 is only 2km from 士林, 澄清湖 and 明德水庫 are each
+  // ~1km from their containing township) -- same expected/harmless
+  // pattern as the v2 batch.
+  { name: "白沙屯", lon: 120.6847, lat: 24.6296 },
+  { name: "石門水庫", lon: 121.2333, lat: 24.8025 },
+  { name: "鯉魚潭水庫", lon: 120.78194, lat: 24.341528 },
+  { name: "天母", lon: 121.5300015, lat: 25.1187072 },
+  { name: "澄清湖", lon: 120.367, lat: 22.667 },
+  { name: "佛光山", lon: 120.4461389, lat: 22.7474444 },
+  { name: "九份", lon: 121.8447, lat: 25.1097 },
+  { name: "曾文水庫", lon: 120.4333, lat: 23.2167 },
+  { name: "奮起湖", lon: 120.694833, lat: 23.505083 },
+  { name: "明德水庫", lon: 120.885, lat: 24.58278 },
 ];
