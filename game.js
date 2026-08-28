@@ -580,18 +580,23 @@
     ctx.closePath();
   }
 
-  function drawLabelPill(cx, cy, text) {
-    bgCtx.font = "bold 13px sans-serif";
-    const w = bgCtx.measureText(text).width + 16;
+  // `ctx`/`textColor` default to the river/mountain-overlay call sites'
+  // original behavior (background layer, white text); the placename
+  // review screen below passes its own canvas/color explicitly.
+  function drawLabelPill(cx, cy, text, ctx, textColor) {
+    ctx = ctx || bgCtx;
+    textColor = textColor || "#ffffff";
+    ctx.font = "bold 13px sans-serif";
+    const w = ctx.measureText(text).width + 16;
     const h = 22;
-    bgCtx.fillStyle = "rgba(0,0,0,0.55)";
-    roundRectPath(bgCtx, cx - w / 2, cy - h / 2, w, h, 6);
-    bgCtx.fill();
-    bgCtx.fillStyle = "#ffffff";
-    bgCtx.textAlign = "center";
-    bgCtx.textBaseline = "middle";
-    bgCtx.fillText(text, cx, cy);
-    bgCtx.textBaseline = "alphabetic"; // restore the default other draw calls assume
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 6);
+    ctx.fill();
+    ctx.fillStyle = textColor;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, cx, cy);
+    ctx.textBaseline = "alphabetic"; // restore the default other draw calls assume
   }
 
   // Places points every ~spacingPx along a polyline (each segment gets its
@@ -1431,7 +1436,7 @@
       resultCtx.stroke();
 
       const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
-      drawLabelPill(px.x, labelY, r.name);
+      drawLabelPill(px.x, labelY, r.name, resultCtx, color);
     }
   }
 
