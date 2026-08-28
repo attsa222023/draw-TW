@@ -1435,8 +1435,13 @@
       resultCtx.strokeStyle = "#ffffff";
       resultCtx.stroke();
 
+      // The dot alone carries the correct/wrong color; only wrong labels
+      // also turn red for extra emphasis -- red-vs-green text on a small
+      // pill is a rough call for red-green color blindness, so correct
+      // ones stay plain white rather than green-on-black.
       const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
-      drawLabelPill(px.x, labelY, r.name, resultCtx, color);
+      const labelColor = r.correct ? "#ffffff" : "#ff5252";
+      drawLabelPill(px.x, labelY, r.name, resultCtx, labelColor);
     }
   }
 
