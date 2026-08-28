@@ -9,7 +9,7 @@
      enough that without a cache-busting query string, a deploy can take a
      long time (or a manual hard-refresh) to actually reach a returning
      visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <header>
@@ -104,7 +104,15 @@
       <div id="placename-score-number"></div>
       <p id="placename-score-message"></p>
       <div id="placename-breakdown"></div>
-      <button id="placename-retry-btn" type="button">再玩一次</button>
+      <div id="placename-result-buttons">
+        <button id="placename-review-btn" type="button">🔍 複習地名位置</button>
+        <button id="placename-retry-btn" type="button">再玩一次</button>
+      </div>
+    </div>
+
+    <div id="placename-review-controls" hidden>
+      <p class="subtitle">🟢 答對的地名　🔴 答錯的地名</p>
+      <button id="placename-review-back-btn" type="button">↩️ 返回成績</button>
     </div>
 
     <div id="result-panel" hidden>
@@ -142,8 +150,8 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=15"></script>
-  <script src="records.js?v=15"></script>
-  <script src="game.js?v=15"></script>
+  <script src="taiwan-data.js?v=16"></script>
+  <script src="records.js?v=16"></script>
+  <script src="game.js?v=16"></script>
 </body>
 </html>

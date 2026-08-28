@@ -982,6 +982,9 @@
   const placenameScoreMessageEl = document.getElementById("placename-score-message");
   const placenameBreakdownEl = document.getElementById("placename-breakdown");
   const placenameRetryBtn = document.getElementById("placename-retry-btn");
+  const placenameReviewBtn = document.getElementById("placename-review-btn");
+  const placenameReviewControlsEl = document.getElementById("placename-review-controls");
+  const placenameReviewBackBtn = document.getElementById("placename-review-back-btn");
   const PLACENAME_RECORDS_KEY = "drawTaiwanPlacenameRecords";
 
   let lastResult = null; // {scores, grade, message} for the download-card button
@@ -1048,6 +1051,7 @@
     placenameFeedbackEl.hidden = true;
     placenameControlsEl.hidden = true;
     placenameResultPanelEl.hidden = true;
+    placenameReviewControlsEl.hidden = true;
     placenameTutorialOverlay.hidden = true;
     placenameToolsEl.hidden = true;
     placenameCatchupPanel.hidden = true;
@@ -1165,6 +1169,7 @@
     placenameFeedbackEl.hidden = false;
     placenameControlsEl.hidden = false;
     placenameResultPanelEl.hidden = true;
+    placenameReviewControlsEl.hidden = true;
     placenameToolsEl.hidden = false;
     placenameBackToTodayBtn.hidden = !activePlacenameDate;
     placenameCatchupPanel.hidden = true; // always close the picker when (re)entering
@@ -1322,7 +1327,14 @@
     const distanceKm = Math.hypot(kmX - targetKm.x, kmY - targetKm.y);
     const correct = distanceKm <= tier.radiusKm;
 
-    placenameResults.push({ name: target.name, tierIndex: placenameSelectedTierIndex, correct, distanceKm });
+    placenameResults.push({
+      name: target.name,
+      lon: target.lon,
+      lat: target.lat,
+      tierIndex: placenameSelectedTierIndex,
+      correct,
+      distanceKm,
+    });
     placenameAvailableTiers = placenameAvailableTiers.filter((i) => i !== placenameSelectedTierIndex);
     placenameAnswered = true;
 
@@ -1399,6 +1411,39 @@
 
   placenameRetryBtn.addEventListener("click", () => {
     enterPlacenameMode();
+  });
+
+  // Draws every question from this round at its real location at once
+  // (unlike the reveal during play, which only ever shows one at a time),
+  // colored by whether that answer was correct -- lets the player see the
+  // whole round's geography together after the fact.
+  function drawPlacenameReview() {
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    for (const r of placenameResults) {
+      const px = toCanvas(r.lon, r.lat);
+      const color = r.correct ? "#2ecc71" : "#ff5252";
+      resultCtx.beginPath();
+      resultCtx.arc(px.x, px.y, 6, 0, Math.PI * 2);
+      resultCtx.fillStyle = color;
+      resultCtx.fill();
+      resultCtx.lineWidth = 2;
+      resultCtx.strokeStyle = "#ffffff";
+      resultCtx.stroke();
+
+      const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
+      drawLabelPill(px.x, labelY, r.name);
+    }
+  }
+
+  placenameReviewBtn.addEventListener("click", () => {
+    placenameResultPanelEl.hidden = true;
+    placenameReviewControlsEl.hidden = false;
+    drawPlacenameReview();
+  });
+  placenameReviewBackBtn.addEventListener("click", () => {
+    placenameReviewControlsEl.hidden = true;
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    placenameResultPanelEl.hidden = false;
   });
 
   undoBtn.addEventListener("click", () => {

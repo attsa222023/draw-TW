@@ -467,10 +467,40 @@ main {
   text-align: left;
 }
 
+#placename-result-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
 #placename-retry-btn {
   background: var(--real-color);
   color: #06331a;
   font-weight: 700;
+}
+
+#placename-review-btn {
+  background: transparent;
+  border: 2px solid var(--ocean-light);
+  color: var(--ink);
+}
+
+#placename-review-btn:hover {
+  background: var(--ocean-light);
+}
+
+#placename-review-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+#placename-review-controls[hidden] {
+  display: none;
 }
 
 #canvas-wrap {
