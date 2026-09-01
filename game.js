@@ -570,6 +570,18 @@
   // ---- Controls ---------------------------------------------------------
   const undoBtn = document.getElementById("undo-btn");
   const clearBtn = document.getElementById("clear-btn");
+
+  undoBtn.addEventListener("click", () => {
+    if (finished) return;
+    strokes.pop();
+    redrawStrokes();
+  });
+
+  clearBtn.addEventListener("click", () => {
+    if (finished) return;
+    strokes = [];
+    redrawStrokes();
+  });
   const finishBtn = document.getElementById("finish-btn");
   const retryBtn = document.getElementById("retry-btn");
   const resultPanel = document.getElementById("result-panel");
