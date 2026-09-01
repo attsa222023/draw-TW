@@ -35,8 +35,12 @@ function loadRecords(key) {
 // Returns the updated records plus whether this attempt was a new best.
 function recordAttempt(key, scorePct, grade) {
   const records = loadRecords(key);
+  const isFirstAttempt = records.attempts === 0;
   records.attempts += 1;
-  const isNewBest = scorePct > records.bestScore;
+  // The very first attempt is always "the best so far" even at 0% --
+  // `scorePct > records.bestScore` alone misses that case, since bestScore
+  // also starts at 0, and would otherwise leave bestGrade stuck at null.
+  const isNewBest = isFirstAttempt || scorePct > records.bestScore;
   if (isNewBest) {
     records.bestScore = scorePct;
     records.bestGrade = grade;
