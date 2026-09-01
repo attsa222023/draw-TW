@@ -611,4 +611,24 @@ const PLACENAME_POOL = [
   { name: "曾文水庫", lon: 120.4333, lat: 23.2167 },
   { name: "奮起湖", lon: 120.694833, lat: 23.505083 },
   { name: "明德水庫", lon: 120.885, lat: 24.58278 },
+  // v4 batch (indices 334-344), added 2026-09-01, effective 2026-09-02
+  // (see PLACENAME_POOL_EPOCHS in game.js). 內灣 reuses TAIWAN_LANDMARKS'
+  // existing value above; the rest sourced from Wikipedia/taiwan.net.tw/
+  // newtaipei.travel/twtainan.net. 奮起湖 was in the user's original list
+  // for this batch too but is already in the v3 batch above -- skipped
+  // here. 大霸尖山 and 雪山主峰 are the first pair of entries within the
+  // same batch to land close together (~9km, both Shei-Pa peaks) --
+  // same harmless pattern as the existing-entry proximity cases already
+  // noted on earlier batches.
+  { name: "義大遊樂世界", lon: 120.40898, lat: 22.730787 },
+  { name: "九族文化村", lon: 120.94788, lat: 23.869105 },
+  { name: "六福村", lon: 121.18167, lat: 24.82111 },
+  { name: "拉拉山", lon: 121.42263, lat: 24.703442 },
+  { name: "大霸尖山", lon: 121.258, lat: 24.4577 },
+  { name: "雪山主峰", lon: 121.2318, lat: 24.3834 },
+  { name: "八卦山", lon: 120.5514, lat: 24.0787 },
+  { name: "秀姑巒山", lon: 121.05755, lat: 23.496789 },
+  { name: "十分", lon: 121.78285, lat: 25.04741 },
+  { name: "內灣", lon: 121.1583, lat: 24.6874 },
+  { name: "菁寮", lon: 120.33588, lat: 23.37867 },
 ];
