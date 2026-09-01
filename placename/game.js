@@ -214,12 +214,22 @@
   let selectedTierIndex = null; // tier picked for the CURRENT question, if any
   let circlePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
   let answered = false; // true once the current question has been confirmed (reveal shown)
-  let results = []; // [{name, lon, lat, tierIndex, correct, distanceKm}], one per answered question
+  // [{name, lon, lat, tierIndex, correct, distanceKm}], one per answered
+  // question -- for a reconstructed pre-archive-feature legacy entry (see
+  // showArchivedResult), tierIndex/correct/distanceKm are null instead:
+  // the day's actual place names are recoverable (questionsForDate() is
+  // deterministic), but which tier the player picked and whether they hit
+  // it never got recorded, so there's nothing to reconstruct there.
+  let results = [];
   // True while showing a past day's read-only score card (showArchivedResult).
   // There's nothing left to hide there -- unlike a just-finished round, the
   // review map is shown immediately and stays up even behind the score
   // panel, rather than waiting for a "🔍 複習地名位置" click.
   let viewingArchivedResult = false;
+  // True when the currently-shown archived result predates this
+  // per-question tracking (score/grade only) and `results` above was
+  // reconstructed from questionsForDate() rather than loaded from storage.
+  let isLegacyArchive = false;
 
   // County borders (thin lines) + name labels, drawn over the filled
   // island when the difficulty toggle is on.
@@ -296,6 +306,7 @@
   const breakdownEl = document.getElementById("breakdown");
   const reviewBtn = document.getElementById("review-btn");
   const reviewControlsEl = document.getElementById("review-controls");
+  const reviewLegendEl = document.getElementById("review-legend");
   const reviewBackBtn = document.getElementById("review-back-btn");
   const bestScoreLine = document.getElementById("best-score-line");
   const helpBtn = document.getElementById("help-btn");
@@ -359,6 +370,7 @@
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
     viewingArchivedResult = false;
+    isLegacyArchive = false;
 
     questions = activeDate ? questionsForDate(activeDate) : todaysQuestions();
     questionIndex = 0;
@@ -377,19 +389,36 @@
   // spoiled here, it's already history.
   //
   // Entries recorded before this archive feature shipped only have
-  // {score, grade} (no results/totalPoints) -- reconstruct a reasonable
-  // totalPoints from the percentage and fall back to an empty results
-  // list (renderResults hides the review button when there's nothing to
-  // review) rather than showing "undefined".
+  // {score, grade} -- no per-question results, since that wasn't tracked
+  // yet. What IS still recoverable is which 5 place names that day
+  // actually used: questionsForDate() is deterministic (see POOL_EPOCHS
+  // above), so it reconstructs the exact same picks regardless of how
+  // long ago the day was. What's NOT recoverable is which tier the player
+  // picked for each and whether they hit it -- that was never stored, so
+  // those reconstructed entries carry tierIndex/correct/distanceKm: null
+  // rather than a guess. renderResults() and drawReview() both render
+  // these null fields as "we know the place, not the outcome" instead of
+  // pretending it was answered.
   function showArchivedResult(dateStr, entry) {
     const dayLabel = activeDate ? `補玩 ${formatDisplayDate(dateStr)}・` : "";
     questionEl.textContent = `📍 ${dayLabel}已完成挑戰`;
-    results = entry.results || [];
+    isLegacyArchive = !entry.results;
+    results = entry.results
+      ? entry.results
+      : questionsForDate(dateStr).map((q) => ({
+          name: q.name,
+          lon: q.lon,
+          lat: q.lat,
+          tierIndex: null,
+          correct: null,
+          distanceKm: null,
+        }));
     const totalPoints =
       typeof entry.totalPoints === "number" ? entry.totalPoints : Math.round((entry.score / 100) * MAX_SCORE);
     const [computedGrade, message] = gradeFor(entry.score, GRADE_MESSAGES);
     renderResults(totalPoints, entry.score, entry.grade || computedGrade, message, false);
     viewingArchivedResult = true;
+    updateReviewLegend();
     if (results.length > 0) drawReview();
   }
 
@@ -628,16 +657,26 @@
   function renderResults(totalPoints, pct, grade, message, isNewBest) {
     scoreGradeEl.textContent = grade;
     scoreNumberEl.textContent = `${totalPoints} / ${MAX_SCORE} 分（${pct}%）`;
-    scoreMessageEl.textContent = (isNewBest ? "🎉 新紀錄！ " : "") + message;
+    scoreMessageEl.textContent =
+      (isNewBest ? "🎉 新紀錄！ " : "") +
+      message +
+      (isLegacyArchive ? "（這次紀錄於功能升級前完成，只能顯示地名與總分，無法還原每題的作答結果）" : "");
 
     breakdownEl.innerHTML = "";
     results.forEach((r, i) => {
-      const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
       const div = document.createElement("div");
       div.className = "analysis-line";
-      div.textContent = r.correct
-        ? `${i + 1}. ${r.name} — ✅ 用了「${tier.label}」，${tier.points} 分`
-        : `${i + 1}. ${r.name} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
+      // r.correct is null for a reconstructed legacy entry (see
+      // showArchivedResult()) -- the place name is known, but which tier
+      // was picked and whether it landed never got recorded.
+      if (r.correct === null) {
+        div.textContent = `${i + 1}. ${r.name}`;
+      } else {
+        const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
+        div.textContent = r.correct
+          ? `${i + 1}. ${r.name} — ✅ 用了「${tier.label}」，${tier.points} 分`
+          : `${i + 1}. ${r.name} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
+      }
       breakdownEl.appendChild(div);
     });
 
@@ -645,8 +684,9 @@
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
     resultPanelEl.hidden = false;
-    // Nothing to review for a pre-archive-feature legacy entry that has no
-    // stored per-question results (see showArchivedResult()).
+    // Nothing to review when there isn't even a reconstructable place-name
+    // list for this entry (shouldn't happen in practice -- questionsForDate()
+    // always returns 5 -- but stays as a safety net).
     reviewBtn.hidden = results.length === 0;
   }
 
@@ -709,12 +749,15 @@
   // Draws every question from this round at its real location at once
   // (unlike the reveal during play, which only ever shows one at a time),
   // colored by whether that answer was correct -- lets the player see the
-  // whole round's geography together after the fact.
+  // whole round's geography together after the fact. r.correct is null
+  // for a reconstructed legacy entry (see showArchivedResult()) -- the
+  // place is known but the outcome isn't, so those get a neutral amber
+  // marker instead of a red/green verdict that would be a guess.
   function drawReview() {
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     for (const r of results) {
       const px = toCanvas(r.lon, r.lat);
-      const color = r.correct ? "#2ecc71" : "#ff5252";
+      const color = r.correct === null ? "#ffb703" : r.correct ? "#2ecc71" : "#ff5252";
       resultCtx.beginPath();
       resultCtx.arc(px.x, px.y, 6, 0, Math.PI * 2);
       resultCtx.fillStyle = color;
@@ -726,16 +769,24 @@
       // The dot alone carries the correct/wrong color; only wrong labels
       // also turn red for extra emphasis -- red-vs-green text on a small
       // pill is a rough call for red-green color blindness, so correct
-      // ones stay plain white rather than green-on-black.
+      // (and unknown-outcome) ones stay plain white rather than
+      // green-on-black.
       const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
-      const labelColor = r.correct ? "#ffffff" : "#ff5252";
+      const labelColor = r.correct === false ? "#ff5252" : "#ffffff";
       drawLabelPill(px.x, labelY, r.name, resultCtx, labelColor);
     }
+  }
+
+  function updateReviewLegend() {
+    reviewLegendEl.textContent = isLegacyArchive
+      ? "📍 這次的地名位置（作答結果未記錄，無法標示對錯）"
+      : "🟢 答對的地名　🔴 答錯的地名";
   }
 
   reviewBtn.addEventListener("click", () => {
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = false;
+    updateReviewLegend();
     drawReview();
   });
   reviewBackBtn.addEventListener("click", () => {
