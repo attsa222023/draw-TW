@@ -633,15 +633,16 @@ const PLACENAME_POOL = [
   { name: "菁寮", lon: 120.33588, lat: 23.37867 },
   // v5 batch (indices 345-351), added 2026-09-01, effective 2026-09-03
   // (see PLACENAME_POOL_EPOCHS in game.js) -- 7 hot-spring-area landmarks.
-  // 草山 is 陽明山's historical name (same coordinate reused from
-  // TAIWAN_LANDMARKS' 陽明山 entry above -- 陽明山 itself was never added
-  // to this pool under its current name, so no in-pool duplicate); 知本
-  // also reuses its existing TAIWAN_LANDMARKS value. The rest sourced
-  // from Wikipedia. 草山/紗帽山 land only ~2km apart (both on the same
-  // Yangmingshan massif) -- same harmless same-batch proximity as
-  // 大霸尖山/雪山主峰 in the previous batch.
+  // Originally added as 草山 (陽明山's historical name); renamed in place
+  // to 陽明山 on request -- safe without a new epoch entry since it's the
+  // same coordinate at the same array position, just a different label,
+  // so it doesn't touch poolSize or index ordering at all. 知本 reuses
+  // its existing TAIWAN_LANDMARKS value; the rest sourced from Wikipedia.
+  // 陽明山/紗帽山 land only ~2km apart (both on the same Yangmingshan
+  // massif) -- same harmless same-batch proximity as 大霸尖山/雪山主峰 in
+  // the previous batch.
   { name: "鳩之澤溫泉", lon: 121.5081831, lat: 24.5453779 },
-  { name: "草山", lon: 121.5597, lat: 25.1633 },
+  { name: "陽明山", lon: 121.5597, lat: 25.1633 },
   { name: "紗帽山", lon: 121.5430893, lat: 25.1483538 },
   { name: "谷關", lon: 121.0091667, lat: 24.2033333 },
   { name: "關子嶺", lon: 120.5, lat: 23.33333 },
