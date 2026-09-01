@@ -347,6 +347,13 @@
       return;
     }
 
+    // Undo the hidden=true that renderResults() leaves behind after a
+    // round finishes -- nothing else re-shows these before starting a
+    // fresh (undone) day's questions.
+    tierPickerEl.hidden = false;
+    feedbackEl.hidden = false;
+    controlsEl.hidden = false;
+
     questions = activeDate ? questionsForDate(activeDate) : todaysQuestions();
     questionIndex = 0;
     availableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
