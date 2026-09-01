@@ -631,4 +631,20 @@ const PLACENAME_POOL = [
   { name: "十分", lon: 121.78285, lat: 25.04741 },
   { name: "內灣", lon: 121.1583, lat: 24.6874 },
   { name: "菁寮", lon: 120.33588, lat: 23.37867 },
+  // v5 batch (indices 345-351), added 2026-09-01, effective 2026-09-03
+  // (see PLACENAME_POOL_EPOCHS in game.js) -- 7 hot-spring-area landmarks.
+  // 草山 is 陽明山's historical name (same coordinate reused from
+  // TAIWAN_LANDMARKS' 陽明山 entry above -- 陽明山 itself was never added
+  // to this pool under its current name, so no in-pool duplicate); 知本
+  // also reuses its existing TAIWAN_LANDMARKS value. The rest sourced
+  // from Wikipedia. 草山/紗帽山 land only ~2km apart (both on the same
+  // Yangmingshan massif) -- same harmless same-batch proximity as
+  // 大霸尖山/雪山主峰 in the previous batch.
+  { name: "鳩之澤溫泉", lon: 121.5081831, lat: 24.5453779 },
+  { name: "草山", lon: 121.5597, lat: 25.1633 },
+  { name: "紗帽山", lon: 121.5430893, lat: 25.1483538 },
+  { name: "谷關", lon: 121.0091667, lat: 24.2033333 },
+  { name: "關子嶺", lon: 120.5, lat: 23.33333 },
+  { name: "四重溪溫泉", lon: 120.74583, lat: 22.09528 },
+  { name: "知本", lon: 121.0378, lat: 22.705 },
 ];

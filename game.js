@@ -350,6 +350,11 @@
     // v4: +11 more landmarks (indices 334-344), pushed 2026-09-01,
     // effective the next day so today's questions aren't disturbed.
     { fromDayIndex: dateStringToDayIndex("2026-09-02"), poolSize: 345 },
+    // v5: +7 hot-spring-area landmarks (indices 345-351), pushed
+    // 2026-09-01 (same day as v4). Set to 09-03 (not 09-02, which v4
+    // already claims) so 09-02 still gets its own full day on exactly
+    // the v4 (345) pool before growing again.
+    { fromDayIndex: dateStringToDayIndex("2026-09-03"), poolSize: 352 },
   ];
 
   function placenamePoolSizeForDayIndex(dayIndex) {
