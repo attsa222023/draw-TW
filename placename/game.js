@@ -280,6 +280,11 @@
   // (a just-finished round or an archived one) -- set by renderResults(),
   // read by the share-card button so it works from either path.
   let lastCardScore = null;
+  // Special mode only (daily entries carry no `question` field to switch
+  // to): whether the review map's labels show the answer (r.name) or the
+  // riddle (r.question). Reset to true (answer) whenever a fresh score
+  // panel appears -- see renderResults().
+  let reviewShowAnswer = true;
 
   // County borders (thin lines) + name labels, drawn over the filled
   // island when the difficulty toggle is on.
@@ -366,6 +371,7 @@
   const reviewBtn = document.getElementById("review-btn");
   const reviewControlsEl = document.getElementById("review-controls");
   const reviewLegendEl = document.getElementById("review-legend");
+  const reviewToggleLabelBtn = document.getElementById("review-toggle-label-btn");
   const reviewBackBtn = document.getElementById("review-back-btn");
   const bestScoreLine = document.getElementById("best-score-line");
   const helpBtn = document.getElementById("help-btn");
@@ -507,6 +513,7 @@
     renderResults(totalPoints, entry.score, entry.grade || computedGrade, message, false);
     viewingArchivedResult = true;
     updateReviewLegend();
+    updateReviewToggleVisibility();
     if (results.length > 0) drawReview();
   }
 
@@ -851,6 +858,7 @@
 
   function renderResults(totalPoints, pct, grade, message, isNewBest) {
     lastCardScore = { totalPoints, pct, grade };
+    reviewShowAnswer = true; // fresh score panel -- start the review back on "show answer"
     scoreGradeEl.textContent = grade;
     scoreNumberEl.textContent = `${totalPoints} / ${MAX_SCORE} 分（${pct}%）`;
     scoreMessageEl.textContent =
@@ -992,7 +1000,11 @@
       // green-on-black.
       const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
       const labelColor = r.correct === false ? "#ff5252" : "#ffffff";
-      drawLabelPill(px.x, labelY, r.name, ctx, labelColor);
+      // Special mode entries carry a `question` (the riddle) alongside
+      // `name` (the answer) -- reviewShowAnswer picks which one labels the
+      // map. Daily entries have no `question`, so they always show name.
+      const labelText = reviewShowAnswer || !r.question ? r.name : r.question;
+      drawLabelPill(px.x, labelY, labelText, ctx, labelColor);
     }
   }
 
@@ -1007,9 +1019,24 @@
       : "🟢 答對的地名　🔴 答錯的地名";
   }
 
+  // Only special-mode results have a `question` field to toggle to --
+  // hides the button entirely for a daily round (or a daily archive view),
+  // where there'd be nothing to switch to.
+  function updateReviewToggleVisibility() {
+    reviewToggleLabelBtn.hidden = !results.some((r) => r.question);
+    reviewToggleLabelBtn.textContent = reviewShowAnswer ? "🔤 顯示題目" : "🔤 顯示答案";
+  }
+
+  reviewToggleLabelBtn.addEventListener("click", () => {
+    reviewShowAnswer = !reviewShowAnswer;
+    reviewToggleLabelBtn.textContent = reviewShowAnswer ? "🔤 顯示題目" : "🔤 顯示答案";
+    drawReview();
+  });
+
   reviewBtn.addEventListener("click", () => {
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = false;
+    updateReviewToggleVisibility();
     updateReviewLegend();
     drawReview();
   });
