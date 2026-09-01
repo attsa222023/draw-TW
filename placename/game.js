@@ -660,6 +660,9 @@
     helpBtn.hidden = true;
     hintBarEl.hidden = true;
     wrap.hidden = true;
+    tierPickerEl.hidden = true;
+    feedbackEl.hidden = true;
+    controlsEl.hidden = true;
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
     catchupPanel.hidden = true;
