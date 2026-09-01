@@ -4,18 +4,25 @@
   // Shared projection constants/functions (KM_PER_LAT, KM_PER_PX, PAD,
   // northPoint, projectKm, rotateXY), date/shuffle utilities
   // (getTaipeiDateString, mulberry32, shuffledIndices, dateStringToDayIndex,
-  // dayIndexToDateString, pastDateStrings, formatDisplayDate), and canvas
-  // helpers (roundRectPath, drawLabelPill, paintOceanBase, pickRandom,
-  // gradeFor) all come from ../shared.js, loaded before this file.
-  // TAIWAN_OUTLINE comes from ../shared-outline.js; TAIWAN_COUNTIES and
-  // PLACENAME_POOL come from data.js, both also loaded before this file.
+  // dayIndexToDateString, pastDateStrings, formatDisplayDate), and canvas/
+  // sharing helpers (roundRectPath, drawLabelPill, paintOceanBase,
+  // pickRandom, gradeFor, wrapText, shareOrDownloadCard) all come from
+  // ../shared.js, loaded before this file. TAIWAN_OUTLINE comes from
+  // ../shared-outline.js; TAIWAN_COUNTIES and PLACENAME_POOL come from
+  // data.js; SPECIAL_POOLS comes from special-data.js -- all loaded before
+  // this file.
 
-  // A separate mode from the draw challenge: the player sees the full
-  // island (optionally with county names/borders) and, for 5 place names
-  // shown one at a time, picks one of 5 differently-sized circles (each
-  // used exactly once across the 5 questions) and drops it on the map
-  // trying to cover that place. Smaller circle -> more points, but only if
-  // it's actually placed accurately enough to cover the target.
+  // Two modes, both built on the same play loop (pick a circle size, drop
+  // it on the map, see if it covers the target):
+  //
+  // - Daily (📅): today's (or a caught-up past day's) 5 place names, shown
+  //   directly by name. One-shot per day -- see enterDailyMode() below.
+  // - Special (🎯): a hand-picked 10-question pool (SPECIAL_POOLS,
+  //   special-data.js) themed around a riddle rather than a bare place name
+  //   ("最高的山" -- the player has to know the answer is 玉山 *and* find
+  //   it). Freely replayable, fresh shuffle each time, and since 10
+  //   questions need more than 5 uses, each circle size can be used twice
+  //   instead of once.
   //
   // Radii chosen so the smallest circle is roughly "a small town" (a few
   // hundred km²) and the largest is roughly a third of Taiwan's ~35,800km²
@@ -27,8 +34,15 @@
     { radiusKm: 48, points: 40, label: "大" },
     { radiusKm: 62, points: 20, label: "極大" },
   ];
-  const QUESTIONS_PER_DAY = 5;
-  const MAX_SCORE = PLACENAME_CIRCLE_TIERS.reduce((sum, t) => sum + t.points, 0);
+  const TIER_POINTS_SUM = PLACENAME_CIRCLE_TIERS.reduce((sum, t) => sum + t.points, 0); // 300
+  const QUESTIONS_PER_DAY = 5; // daily mode only -- special pools are always 10, see SPECIAL_POOLS
+
+  // How many times each circle size may be used this round, and the score
+  // that implies -- 1 use / 300 for daily's 5 questions, 2 uses / 600 for
+  // special's 10. Reset at the top of enterDailyMode()/startSpecialRound(),
+  // read by computeScore()/renderTierButtons()/renderResults() etc.
+  let maxUsesPerTier = 1;
+  let MAX_SCORE = TIER_POINTS_SUM;
 
   // Which PLACENAME_POOL size applies to a given day. Growing the pool
   // (appending to data.js) must never change a question that's already
@@ -101,6 +115,18 @@
     return questionsForDate(getTaipeiDateString());
   }
 
+  // Plain (non-seeded) Fisher-Yates shuffle -- special mode wants a fresh
+  // random order every replay ("每次順序不一但是都會出現"), unlike the
+  // daily challenge's deterministic date-seeded one.
+  function shuffleArray(arr) {
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
   function computeScore(results) {
     const totalPoints = results.reduce(
       (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
@@ -132,9 +158,10 @@
   }
 
   // `extraPoints` folded into the bounding box alongside the outline --
-  // passed the whole pool (not just today's 5) below so the map's
-  // size/zoom stays constant day to day regardless of which entries come
-  // up, rather than jumping around whenever an offshore entry is picked.
+  // always passed the whole daily PLACENAME_POOL (not just today's 5, and
+  // not the special pools either -- every special-pool landmark already
+  // sits well within mainland Taiwan, comfortably inside this same box) so
+  // the map's size/zoom stays constant across days AND across modes.
   function configureProjection(rotationDeg, extraPoints) {
     currentRotationDeg = rotationDeg || 0;
 
@@ -186,8 +213,9 @@
   let showCountyOverlay = loadShowCountyOverlay();
 
   // Whether the how-to-play modal has already been shown and dismissed
-  // once -- shown automatically the first time, reopenable anytime
-  // afterward via the "❓ 怎麼玩？" button.
+  // once -- shown automatically the first time (daily mode only; special
+  // mode's rules are explained inline on its pool-picker screen instead),
+  // reopenable anytime afterward via the "❓ 怎麼玩？" button.
   const TUTORIAL_SEEN_KEY = "drawTaiwanPlacenameTutorialSeen";
   function hasSeenTutorial() {
     try {
@@ -204,27 +232,45 @@
     }
   }
 
-  // Catch-up state: null means "today's 5 questions"; otherwise a
-  // "YYYY-MM-DD" Taipei date string for a past day being replayed.
+  // Catch-up state (daily mode only): null means "today's 5 questions";
+  // otherwise a "YYYY-MM-DD" Taipei date string for a past day being
+  // replayed.
   let activeDate = null;
 
-  let questions = []; // today's (or activeDate's) questions, in play order
+  // "daily" | "special" -- which top-level mode is active. activeSpecialPoolId
+  // is which SPECIAL_POOLS entry is being played/reviewed (special mode only).
+  let mode = "daily";
+  let activeSpecialPoolId = null;
+
+  function currentSpecialPool() {
+    return SPECIAL_POOLS.find((p) => p.id === activeSpecialPoolId) || null;
+  }
+
+  function specialRecordsKey(poolId) {
+    return "drawTaiwanPlacenameSpecialRecords_" + poolId;
+  }
+
+  let questions = []; // this round's questions, in play order
   let questionIndex = 0;
-  let availableTiers = []; // indices into PLACENAME_CIRCLE_TIERS not yet used this game
+  let tierUsesLeft = []; // remaining uses per PLACENAME_CIRCLE_TIERS index this round
   let selectedTierIndex = null; // tier picked for the CURRENT question, if any
   let circlePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
   let answered = false; // true once the current question has been confirmed (reveal shown)
-  // [{name, lon, lat, tierIndex, correct, distanceKm}], one per answered
-  // question -- for a reconstructed pre-archive-feature legacy entry (see
-  // showArchivedResult), tierIndex/correct/distanceKm are null instead:
-  // the day's actual place names are recoverable (questionsForDate() is
+  // [{name, question, extra, lon, lat, tierIndex, correct, distanceKm}], one
+  // per answered question. `question`/`extra` are only present for special-
+  // mode entries (the riddle text and the answer's stat, e.g. "3,952m") --
+  // undefined for daily entries, which show the place name as the question
+  // itself. For a reconstructed pre-archive-feature legacy daily entry (see
+  // showArchivedResult), tierIndex/correct/distanceKm are null instead: the
+  // day's actual place names are recoverable (questionsForDate() is
   // deterministic), but which tier the player picked and whether they hit
   // it never got recorded, so there's nothing to reconstruct there.
   let results = [];
-  // True while showing a past day's read-only score card (showArchivedResult).
-  // There's nothing left to hide there -- unlike a just-finished round, the
-  // review map is shown immediately and stays up even behind the score
-  // panel, rather than waiting for a "🔍 複習地名位置" click.
+  // True while showing a past day's read-only score card (showArchivedResult,
+  // daily mode only). There's nothing left to hide there -- unlike a
+  // just-finished round, the review map is shown immediately and stays up
+  // even behind the score panel, rather than waiting for a "🔍 複習地名位置"
+  // click.
   let viewingArchivedResult = false;
   // True when the currently-shown archived result predates this
   // per-question tracking (score/grade only) and `results` above was
@@ -297,6 +343,9 @@
   }
 
   // ---- Controls ---------------------------------------------------------
+  const modeDailyBtn = document.getElementById("mode-daily-btn");
+  const modeSpecialBtn = document.getElementById("mode-special-btn");
+  const hintBarEl = document.getElementById("hint-bar");
   const questionEl = document.getElementById("question");
   const tierPickerEl = document.getElementById("tier-picker");
   const feedbackEl = document.getElementById("feedback");
@@ -313,6 +362,7 @@
   if (supportsFileShare) {
     shareCardBtn.textContent = "分享成績卡片";
   }
+  const retrySpecialBtn = document.getElementById("retry-special-btn");
   const reviewBtn = document.getElementById("review-btn");
   const reviewControlsEl = document.getElementById("review-controls");
   const reviewLegendEl = document.getElementById("review-legend");
@@ -321,7 +371,6 @@
   const helpBtn = document.getElementById("help-btn");
   const tutorialOverlay = document.getElementById("tutorial-overlay");
   const tutorialCloseBtn = document.getElementById("tutorial-close-btn");
-  const toolsEl = document.getElementById("tools");
   const catchupBtn = document.getElementById("catchup-btn");
   const backToTodayBtn = document.getElementById("back-to-today-btn");
   const catchupPanel = document.getElementById("catchup-panel");
@@ -331,10 +380,14 @@
   const archivePanel = document.getElementById("archive-panel");
   const archiveListEl = document.getElementById("archive-list");
   const archiveCloseBtn = document.getElementById("archive-close-btn");
+  const backToPoolListBtn = document.getElementById("back-to-pool-list-btn");
+  const specialPoolPickerEl = document.getElementById("special-pool-picker");
+  const specialPoolListEl = document.getElementById("special-pool-list");
   const RECORDS_KEY = "drawTaiwanPlacenameRecords";
   const HISTORY_KEY = "drawTaiwanPlacenameHistory";
 
   function updateBestScoreDisplay(records) {
+    bestScoreLine.hidden = false;
     if (records.attempts === 0) {
       bestScoreLine.textContent = "🏆 最高紀錄：尚未挑戰";
       return;
@@ -342,7 +395,31 @@
     bestScoreLine.textContent = `🏆 最高紀錄：${records.bestScore}% (${records.bestGrade}) ・ 已挑戰 ${records.attempts} 次`;
   }
 
-  function enterMode() {
+  function setActiveModeBtn() {
+    modeDailyBtn.classList.toggle("active", mode === "daily");
+    modeSpecialBtn.classList.toggle("active", mode === "special");
+  }
+
+  // catchup/archive (daily-only) vs. "⬅️ 選擇題庫" (special-only, once a
+  // pool's been chosen) share the same #tools row.
+  function updateToolsVisibility() {
+    const isDaily = mode === "daily";
+    catchupBtn.hidden = !isDaily;
+    archiveBtn.hidden = !isDaily;
+    backToTodayBtn.hidden = !isDaily || !activeDate;
+    backToPoolListBtn.hidden = isDaily || !activeSpecialPoolId;
+  }
+
+  function enterDailyMode() {
+    mode = "daily";
+    setActiveModeBtn();
+    maxUsesPerTier = 1;
+    MAX_SCORE = TIER_POINTS_SUM * maxUsesPerTier;
+    helpBtn.hidden = false;
+    hintBarEl.hidden = false;
+    wrap.hidden = false;
+    specialPoolPickerEl.hidden = true;
+
     // Always the plain, unrotated island. The whole pool is passed as
     // extraPoints (not just today's 5) so the map's size/zoom stays
     // constant day to day regardless of which entries come up -- every
@@ -353,9 +430,9 @@
 
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
-    backToTodayBtn.hidden = !activeDate;
     catchupPanel.hidden = true; // always close either picker when (re)entering
     archivePanel.hidden = true;
+    updateToolsVisibility();
 
     drawBackground();
     updateBestScoreDisplay(loadRecords(RECORDS_KEY));
@@ -380,10 +457,11 @@
     controlsEl.hidden = false;
     viewingArchivedResult = false;
     isLegacyArchive = false;
+    retrySpecialBtn.hidden = true;
 
     questions = activeDate ? questionsForDate(activeDate) : todaysQuestions();
     questionIndex = 0;
-    availableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
+    tierUsesLeft = PLACENAME_CIRCLE_TIERS.map(() => maxUsesPerTier);
     results = [];
     startQuestion();
 
@@ -407,7 +485,8 @@
   // those reconstructed entries carry tierIndex/correct/distanceKm: null
   // rather than a guess. renderResults() and drawReview() both render
   // these null fields as "we know the place, not the outcome" instead of
-  // pretending it was answered.
+  // pretending it was answered. (Daily mode only -- special mode has no
+  // archive, since it's freely replayable rather than one-shot per day.)
   function showArchivedResult(dateStr, entry) {
     const dayLabel = activeDate ? `補玩 ${formatDisplayDate(dateStr)}・` : "";
     questionEl.textContent = `📍 ${dayLabel}已完成挑戰`;
@@ -441,7 +520,7 @@
     markTutorialSeen();
   });
 
-  // ---- Catch-up: replay a past day's challenge ---------------------------
+  // ---- Catch-up: replay a past day's challenge (daily mode only) --------
   // The archive should look like what it actually is -- a mode that just
   // launched -- rather than immediately claiming a full month of history
   // that never happened. It starts at ~1 week (as of the date below) and
@@ -488,7 +567,7 @@
         `<span class="catchup-status">尚未挑戰</span>`;
       item.addEventListener("click", () => {
         activeDate = dateStr;
-        enterMode();
+        enterDailyMode();
       });
       catchupListEl.appendChild(item);
     });
@@ -506,10 +585,11 @@
   });
   backToTodayBtn.addEventListener("click", () => {
     activeDate = null;
-    enterMode();
+    enterDailyMode();
   });
 
-  // ---- Archive: read-only score cards for every already-completed day ----
+  // ---- Archive: read-only score cards for every already-completed day
+  // (daily mode only) ------------------------------------------------------
   function renderArchiveList() {
     const history = loadHistory(HISTORY_KEY);
     const dates = Object.keys(history).sort().reverse(); // newest first
@@ -533,7 +613,7 @@
         `<span class="catchup-status">${entry.score}% (${entry.grade})</span>`;
       item.addEventListener("click", () => {
         activeDate = dateStr === todayStr ? null : dateStr;
-        enterMode();
+        enterDailyMode();
       });
       archiveListEl.appendChild(item);
     });
@@ -550,10 +630,99 @@
     archivePanel.hidden = true;
   });
 
+  // ---- Special challenge: pick a pool, play its 10 riddles, replay anytime
+  function renderSpecialPoolList() {
+    specialPoolListEl.innerHTML = "";
+    SPECIAL_POOLS.forEach((pool) => {
+      const records = loadRecords(specialRecordsKey(pool.id));
+      const bestText =
+        records.attempts === 0
+          ? "尚未挑戰"
+          : `🏆 ${records.bestScore}% (${records.bestGrade})・已挑戰 ${records.attempts} 次`;
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "special-pool-item";
+      item.innerHTML =
+        `<span class="special-pool-title">${pool.title}</span>` +
+        `<span class="special-pool-desc">${pool.description}</span>` +
+        `<span class="special-pool-meta">${pool.questions.length} 題　${bestText}</span>`;
+      item.addEventListener("click", () => startSpecialRound(pool.id));
+      specialPoolListEl.appendChild(item);
+    });
+  }
+
+  function enterSpecialPicker() {
+    mode = "special";
+    setActiveModeBtn();
+    activeSpecialPoolId = null;
+    activeDate = null; // has no meaning outside daily mode
+
+    helpBtn.hidden = true;
+    hintBarEl.hidden = true;
+    wrap.hidden = true;
+    resultPanelEl.hidden = true;
+    reviewControlsEl.hidden = true;
+    catchupPanel.hidden = true;
+    archivePanel.hidden = true;
+    specialPoolPickerEl.hidden = false;
+    bestScoreLine.hidden = true; // each pool card shows its own best instead
+    updateToolsVisibility();
+    renderSpecialPoolList();
+  }
+
+  function startSpecialRound(poolId) {
+    activeSpecialPoolId = poolId;
+    const pool = currentSpecialPool();
+    mode = "special";
+    setActiveModeBtn();
+    maxUsesPerTier = 2;
+    MAX_SCORE = TIER_POINTS_SUM * maxUsesPerTier;
+
+    helpBtn.hidden = true;
+    hintBarEl.hidden = false;
+    wrap.hidden = false;
+    specialPoolPickerEl.hidden = true;
+
+    // Same fixed map framing as daily mode -- every special-pool landmark
+    // already sits inside that box, so reusing it keeps the map's zoom/pan
+    // identical between modes instead of jumping around on every switch.
+    configureProjection(0, PLACENAME_POOL);
+
+    resultPanelEl.hidden = true;
+    reviewControlsEl.hidden = true;
+    tierPickerEl.hidden = false;
+    feedbackEl.hidden = false;
+    controlsEl.hidden = false;
+    viewingArchivedResult = false;
+    isLegacyArchive = false;
+    retrySpecialBtn.hidden = true;
+    updateToolsVisibility();
+
+    drawBackground();
+    updateBestScoreDisplay(loadRecords(specialRecordsKey(poolId)));
+
+    questions = shuffleArray(pool.questions);
+    questionIndex = 0;
+    tierUsesLeft = PLACENAME_CIRCLE_TIERS.map(() => maxUsesPerTier);
+    results = [];
+    startQuestion();
+  }
+
+  modeDailyBtn.addEventListener("click", () => {
+    if (mode !== "daily") enterDailyMode();
+  });
+  modeSpecialBtn.addEventListener("click", () => {
+    if (mode !== "special") enterSpecialPicker();
+  });
+  backToPoolListBtn.addEventListener("click", enterSpecialPicker);
+  retrySpecialBtn.addEventListener("click", () => startSpecialRound(activeSpecialPoolId));
+
   function startQuestion() {
     const q = questions[questionIndex];
-    const dayLabel = activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
-    questionEl.textContent = `📍 ${dayLabel}第 ${questionIndex + 1} 題／${questions.length}：${q.name}`;
+    const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
+    const icon = mode === "special" ? "🎯" : "📍";
+    const prompt = q.question || q.name; // special-mode questions are a riddle; daily's IS the place name
+    questionEl.textContent = `${icon} ${dayLabel}第 ${questionIndex + 1} 題／${questions.length}：${prompt}`;
     selectedTierIndex = null;
     circlePx = null;
     answered = false;
@@ -568,11 +737,15 @@
   function renderTierButtons() {
     tierPickerEl.innerHTML = "";
     PLACENAME_CIRCLE_TIERS.forEach((tier, i) => {
-      const used = !availableTiers.includes(i);
+      const usesLeft = tierUsesLeft[i];
+      const used = usesLeft <= 0;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "tier-btn" + (selectedTierIndex === i ? " selected" : "") + (used ? " used" : "");
-      btn.textContent = `${tier.label}（${tier.points}分）`;
+      // Only special mode's ×2 uses need a count badge -- daily mode (still
+      // 1 use each) looks exactly as it always has.
+      btn.textContent =
+        maxUsesPerTier > 1 ? `${tier.label}（${tier.points}分）×${usesLeft}` : `${tier.label}（${tier.points}分）`;
       btn.disabled = used || answered;
       btn.addEventListener("click", () => {
         selectedTierIndex = i;
@@ -618,13 +791,15 @@
 
     results.push({
       name: target.name,
+      question: target.question,
+      extra: target.extra,
       lon: target.lon,
       lat: target.lat,
       tierIndex: selectedTierIndex,
       correct,
       distanceKm,
     });
-    availableTiers = availableTiers.filter((i) => i !== selectedTierIndex);
+    tierUsesLeft[selectedTierIndex]--;
     answered = true;
 
     const radiusPx = tier.radiusKm / KM_PER_PX;
@@ -647,14 +822,22 @@
     resultCtx.stroke();
 
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    feedbackEl.textContent = correct ? `✅ 涵蓋成功！` : `❌ 沒涵蓋到，差了約 ${Math.round(distanceKm)} 公里`;
+    // Special mode's question was a riddle, not the place name -- reveal
+    // the answer in the feedback line. Daily mode already showed the name
+    // as the question, so there's nothing to add there.
+    const revealPrefix = target.question ? `「${target.name}」` : "";
+    feedbackEl.textContent = correct
+      ? `✅ ${revealPrefix}涵蓋成功！`
+      : `❌ ${revealPrefix}沒涵蓋到，差了約 ${Math.round(distanceKm)} 公里`;
     confirmBtn.hidden = true;
     renderTierButtons();
 
     if (questionIndex < questions.length - 1) {
       nextBtn.hidden = false;
-    } else {
+    } else if (mode === "daily") {
       finishChallenge();
+    } else {
+      finishSpecialRound();
     }
   });
 
@@ -676,16 +859,17 @@
     results.forEach((r, i) => {
       const div = document.createElement("div");
       div.className = "analysis-line";
+      const label = r.extra ? `${r.name}（${r.extra}）` : r.name;
       // r.correct is null for a reconstructed legacy entry (see
       // showArchivedResult()) -- the place name is known, but which tier
       // was picked and whether it landed never got recorded.
       if (r.correct === null) {
-        div.textContent = `${i + 1}. ${r.name}`;
+        div.textContent = `${i + 1}. ${label}`;
       } else {
         const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
         div.textContent = r.correct
-          ? `${i + 1}. ${r.name} — ✅ 用了「${tier.label}」，${tier.points} 分`
-          : `${i + 1}. ${r.name} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
+          ? `${i + 1}. ${label} — ✅ 用了「${tier.label}」，${tier.points} 分`
+          : `${i + 1}. ${label} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
       }
       breakdownEl.appendChild(div);
     });
@@ -698,11 +882,17 @@
     // list for this entry (shouldn't happen in practice -- questionsForDate()
     // always returns 5 -- but stays as a safety net).
     reviewBtn.hidden = results.length === 0;
+    // Special mode is freely replayable -- daily mode's retry button was
+    // removed outright (each day is one-shot), so this one only ever shows
+    // here.
+    retrySpecialBtn.hidden = mode !== "special";
   }
 
   // Same shape as the draw challenge's GRADE_MESSAGES but themed around
   // pinpointing place names on a visible map (geography/precision) rather
-  // than freehand drawing accuracy.
+  // than freehand drawing accuracy. Reused as-is for special mode's riddle
+  // questions too -- both are fundamentally "how well do you know Taiwan's
+  // geography."
   const GRADE_MESSAGES = {
     S: [
       "根本是台灣百科全書，指哪打哪！",
@@ -753,6 +943,18 @@
     // archive without needing to be played again -- this is a one-shot
     // challenge, there's no retry to fall back on.
     recordHistoryEntry(HISTORY_KEY, targetDate, pct, grade, { totalPoints, results });
+    renderResults(totalPoints, pct, grade, message, isNewBest);
+  }
+
+  // Special mode's counterpart to finishChallenge() -- no HISTORY_KEY/date
+  // bookkeeping (there's no one-shot lock or archive to feed), just a
+  // per-pool running best score, same pattern as the daily mode's overall
+  // RECORDS_KEY.
+  function finishSpecialRound() {
+    const { totalPoints, pct } = computeScore(results);
+    const [grade, message] = gradeFor(pct, GRADE_MESSAGES);
+    const { records, isNewBest } = recordAttempt(specialRecordsKey(activeSpecialPoolId), pct, grade);
+    updateBestScoreDisplay(records);
     renderResults(totalPoints, pct, grade, message, isNewBest);
   }
 
@@ -824,7 +1026,8 @@
   // whatever's currently on the score panel (results/scoreMessageEl/
   // breakdownEl), so it works identically for a just-finished round or an
   // archived one (including a reconstructed legacy entry's neutral markers
-  // and name-only breakdown lines -- see showArchivedResult()).
+  // and name-only breakdown lines -- see showArchivedResult()) or a special
+  // round.
   function buildScoreCard(totalPoints, pct, grade) {
     const margin = 28;
     const cardW = CANVAS_W + margin * 2;
@@ -847,7 +1050,13 @@
 
     ctx.fillStyle = "rgba(234,246,255,0.85)";
     ctx.font = "bold 18px sans-serif";
-    const titleLabel = activeDate ? `📍 每日台灣地名挑戰・補玩 ${formatDisplayDate(activeDate)}` : "📍 每日台灣地名挑戰";
+    const pool = currentSpecialPool();
+    const titleLabel =
+      mode === "special"
+        ? `🎯 特殊挑戰・${pool ? pool.title : ""}`
+        : activeDate
+        ? `📍 每日台灣地名挑戰・補玩 ${formatDisplayDate(activeDate)}`
+        : "📍 每日台灣地名挑戰";
     ctx.fillText(titleLabel, cardW / 2, y + 18);
     y += 34;
 
@@ -897,10 +1106,18 @@
     if (!lastCardScore) return;
     const { totalPoints, pct, grade } = lastCardScore;
     const card = buildScoreCard(totalPoints, pct, grade);
-    const filename = `placename-taiwan-${pct}pct.png`;
-    const shareText = `我在「每日台灣地名挑戰」拿到 ${pct}% (${grade})，你要不要也來試試？`;
-    shareOrDownloadCard(card, filename, "每日台灣地名挑戰", shareText);
+    if (mode === "special") {
+      const pool = currentSpecialPool();
+      const poolTitle = pool ? pool.title : "";
+      const filename = `placename-special-${activeSpecialPoolId}-${pct}pct.png`;
+      const shareText = `我在「特殊挑戰・${poolTitle}」拿到 ${pct}% (${grade})，你要不要也來試試？`;
+      shareOrDownloadCard(card, filename, `特殊挑戰・${poolTitle}`, shareText);
+    } else {
+      const filename = `placename-taiwan-${pct}pct.png`;
+      const shareText = `我在「每日台灣地名挑戰」拿到 ${pct}% (${grade})，你要不要也來試試？`;
+      shareOrDownloadCard(card, filename, "每日台灣地名挑戰", shareText);
+    }
   });
 
-  enterMode();
+  enterDailyMode();
 })();

@@ -12,12 +12,16 @@
      with the root page's own assets isn't necessary -- this page's files
      are independent, just bump whichever ones actually changed. -->
 <link rel="stylesheet" href="../style.css?v=1">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header>
     <h1>📍 每日台灣地名挑戰</h1>
     <p class="subtitle tagline">地圖已經攤在你眼前，用最小的圈精準命中每個地名，拿下最高分！</p>
+    <div id="mode-toggle">
+      <button id="mode-daily-btn" class="mode-btn active" type="button">📅 每日挑戰</button>
+      <button id="mode-special-btn" class="mode-btn" type="button">🎯 特殊挑戰</button>
+    </div>
     <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
     <p class="cross-link"><a href="../">🇹🇼 也來玩畫出台灣 →</a></p>
   </header>
@@ -36,6 +40,7 @@
       <button id="catchup-btn" type="button">📅 補玩錯過的挑戰</button>
       <button id="archive-btn" type="button">📦 成績封存</button>
       <button id="back-to-today-btn" type="button" hidden>↩️ 返回今天</button>
+      <button id="back-to-pool-list-btn" type="button" hidden>⬅️ 選擇題庫</button>
     </div>
     <div id="catchup-panel" hidden>
       <p class="catchup-panel-title">選擇想補玩的日期：</p>
@@ -46,6 +51,15 @@
       <p class="catchup-panel-title">選擇想回顧的成績：</p>
       <div id="archive-list"></div>
       <button id="archive-close-btn" type="button">關閉</button>
+    </div>
+
+    <div id="special-pool-picker" hidden>
+      <p class="subtitle">🎯 選擇想挑戰的特殊題庫：</p>
+      <p class="subtitle special-pool-intro">
+        這裡的題目不是地名，而是謎題──例如「台灣最高的山」，你得先想出答案，再標出正確位置！
+        每組 10 題，每種尺寸的圈可以用兩次，可以重複挑戰。
+      </p>
+      <div id="special-pool-list"></div>
     </div>
 
     <div id="tutorial-overlay" hidden>
@@ -84,6 +98,7 @@
       <div id="result-buttons">
         <button id="review-btn" type="button">🔍 複習地名位置</button>
         <button id="download-card-btn" type="button">下載成績卡片</button>
+        <button id="retry-special-btn" type="button" hidden>🔁 再玩一次</button>
       </div>
     </div>
 
@@ -96,7 +111,8 @@
   <script src="../shared-outline.js?v=1"></script>
   <script src="../shared.js?v=2"></script>
   <script src="data.js?v=1"></script>
+  <script src="special-data.js?v=1"></script>
   <script src="../records.js?v=2"></script>
-  <script src="game.js?v=6"></script>
+  <script src="game.js?v=7"></script>
 </body>
 </html>

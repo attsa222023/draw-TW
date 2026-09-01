@@ -196,3 +196,69 @@
 #review-controls[hidden] {
   display: none;
 }
+
+/* Special mode is freely replayable, unlike daily mode's one-shot days
+   (which dropped its retry button entirely) -- distinct green "go again"
+   treatment, same idea as the draw game's own #retry-btn. */
+#retry-special-btn {
+  background: var(--real-color);
+  color: #06331a;
+  font-weight: 700;
+}
+
+/* Mirrors #archive-panel above (same look, its own container) -- rows use
+   a dedicated .special-pool-item class rather than .catchup-item since the
+   content shape is different (title/description/meta, not a fixed grid of
+   date/summary/status). */
+#special-pool-picker {
+  width: 100%;
+  max-width: 420px;
+  margin: 14px auto 0;
+}
+
+.special-pool-intro {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+#special-pool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.special-pool-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--panel-bg);
+  border: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.special-pool-item:hover {
+  border-color: var(--ocean-light);
+}
+
+.special-pool-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.special-pool-desc {
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.special-pool-meta {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
