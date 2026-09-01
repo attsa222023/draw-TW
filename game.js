@@ -188,12 +188,15 @@
     return { markers, features: lines };
   }
 
+  // No "今日參考：" prefix here -- the caller (challenge-desc text) already
+  // opens with "今日挑戰："/"補玩 M/D：", so a second "今日參考" right after
+  // was redundant as well as making the line longer than it needs to be.
   function describeVariant(variant) {
     if (variant.type === "rotate") return `地圖旋轉了 ${variant.angle}°，北方不再朝上`;
     const { markers, features } = resolvePairRoles(variant);
     const parts = markers.map((m) => `${m.style}「${m.label}」`);
     for (const f of features) parts.push(`參考${f.kind === "river" ? "河流" : "山脈"}「${f.label}」`);
-    return `今日參考：${parts.join("、")}`;
+    return parts.join("、");
   }
 
   // Compact one-line summary for a catch-up list row (no role/prefix
