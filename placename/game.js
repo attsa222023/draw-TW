@@ -289,7 +289,6 @@
   const scoreNumberEl = document.getElementById("score-number");
   const scoreMessageEl = document.getElementById("score-message");
   const breakdownEl = document.getElementById("breakdown");
-  const retryBtn = document.getElementById("retry-btn");
   const reviewBtn = document.getElementById("review-btn");
   const reviewControlsEl = document.getElementById("review-controls");
   const reviewBackBtn = document.getElementById("review-back-btn");
@@ -303,6 +302,10 @@
   const catchupPanel = document.getElementById("catchup-panel");
   const catchupListEl = document.getElementById("catchup-list");
   const catchupCloseBtn = document.getElementById("catchup-close-btn");
+  const archiveBtn = document.getElementById("archive-btn");
+  const archivePanel = document.getElementById("archive-panel");
+  const archiveListEl = document.getElementById("archive-list");
+  const archiveCloseBtn = document.getElementById("archive-close-btn");
   const RECORDS_KEY = "drawTaiwanPlacenameRecords";
   const HISTORY_KEY = "drawTaiwanPlacenameHistory";
 
@@ -326,18 +329,49 @@
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
     backToTodayBtn.hidden = !activeDate;
-    catchupPanel.hidden = true; // always close the picker when (re)entering
+    catchupPanel.hidden = true; // always close either picker when (re)entering
+    archivePanel.hidden = true;
+
+    drawBackground();
+    updateBestScoreDisplay(loadRecords(RECORDS_KEY));
+
+    // Each day can only ever be played once -- no retry. If this day
+    // (today, or a catch-up/archive date) already has a recorded result,
+    // show that result read-only instead of letting the player answer
+    // again, whether they landed here fresh (today, already done earlier)
+    // or clicked into it from the catch-up/archive list.
+    const targetDate = activeDate || getTaipeiDateString();
+    const doneEntry = loadHistory(HISTORY_KEY)[targetDate];
+    if (doneEntry) {
+      showArchivedResult(targetDate, doneEntry);
+      return;
+    }
 
     questions = activeDate ? questionsForDate(activeDate) : todaysQuestions();
     questionIndex = 0;
     availableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
     results = [];
-
-    drawBackground();
-    updateBestScoreDisplay(loadRecords(RECORDS_KEY));
     startQuestion();
 
     if (!hasSeenTutorial()) showTutorial();
+  }
+
+  // Shows a past day's already-recorded result read-only: same score
+  // card + review map as finishing a round normally produces, just
+  // sourced from the archived entry instead of a just-played `results`.
+  // Entries recorded before this archive feature shipped only have
+  // {score, grade} (no results/totalPoints) -- reconstruct a reasonable
+  // totalPoints from the percentage and fall back to an empty results
+  // list (renderResults hides the review button when there's nothing to
+  // review) rather than showing "undefined".
+  function showArchivedResult(dateStr, entry) {
+    const dayLabel = activeDate ? `補玩 ${formatDisplayDate(dateStr)}・` : "";
+    questionEl.textContent = `📍 ${dayLabel}已完成挑戰`;
+    results = entry.results || [];
+    const totalPoints =
+      typeof entry.totalPoints === "number" ? entry.totalPoints : Math.round((entry.score / 100) * MAX_SCORE);
+    const [computedGrade, message] = gradeFor(entry.score, GRADE_MESSAGES);
+    renderResults(totalPoints, entry.score, entry.grade || computedGrade, message, false);
   }
 
   function showTutorial() {
@@ -367,25 +401,34 @@
     return pastDateStrings(windowSize); // most recent (yesterday) first
   }
 
-  // Doesn't preview that day's actual place names (spoiler risk) --
-  // numbered oldest -> newest instead, while the list itself still shows
-  // newest first.
+  // Only ever lists days not yet played -- once a day is done it can't be
+  // replayed, so it has nothing to offer here anymore and moves to the
+  // archive list instead (see renderArchiveList() below). Doesn't preview
+  // that day's actual place names (spoiler risk) -- numbered oldest ->
+  // newest instead, while the list itself still shows newest first.
   function renderCatchupList() {
     const history = loadHistory(HISTORY_KEY);
     catchupListEl.innerHTML = "";
     const dates = catchupDateStrings();
     const windowSize = dates.length;
-    dates.forEach((dateStr, i) => {
-      const entry = history[dateStr];
+    const undone = dates.filter((dateStr) => !history[dateStr]);
+    if (undone.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "catchup-panel-title";
+      empty.textContent = "太棒了，過去的挑戰都補完了！";
+      catchupListEl.appendChild(empty);
+      return;
+    }
+    undone.forEach((dateStr) => {
+      const i = dates.indexOf(dateStr);
       const item = document.createElement("button");
       item.type = "button";
-      item.className = "catchup-item" + (entry ? " done" : "");
-      const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
+      item.className = "catchup-item";
       const label = String(windowSize - i).padStart(3, "0");
       item.innerHTML =
         `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
         `<span class="catchup-summary">第 ${label} 組</span>` +
-        `<span class="catchup-status">${statusText}</span>`;
+        `<span class="catchup-status">尚未挑戰</span>`;
       item.addEventListener("click", () => {
         activeDate = dateStr;
         enterMode();
@@ -395,7 +438,10 @@
   }
 
   catchupBtn.addEventListener("click", () => {
-    if (catchupPanel.hidden) renderCatchupList();
+    if (catchupPanel.hidden) {
+      renderCatchupList();
+      archivePanel.hidden = true;
+    }
     catchupPanel.hidden = !catchupPanel.hidden;
   });
   catchupCloseBtn.addEventListener("click", () => {
@@ -404,6 +450,47 @@
   backToTodayBtn.addEventListener("click", () => {
     activeDate = null;
     enterMode();
+  });
+
+  // ---- Archive: read-only score cards for every already-completed day ----
+  function renderArchiveList() {
+    const history = loadHistory(HISTORY_KEY);
+    const dates = Object.keys(history).sort().reverse(); // newest first
+    archiveListEl.innerHTML = "";
+    if (dates.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "catchup-panel-title";
+      empty.textContent = "還沒有完成過任何一天的挑戰喔！";
+      archiveListEl.appendChild(empty);
+      return;
+    }
+    const todayStr = getTaipeiDateString();
+    dates.forEach((dateStr) => {
+      const entry = history[dateStr];
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "catchup-item done";
+      item.innerHTML =
+        `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
+        `<span class="catchup-summary">${dateStr === todayStr ? "今天" : ""}</span>` +
+        `<span class="catchup-status">${entry.score}% (${entry.grade})</span>`;
+      item.addEventListener("click", () => {
+        activeDate = dateStr === todayStr ? null : dateStr;
+        enterMode();
+      });
+      archiveListEl.appendChild(item);
+    });
+  }
+
+  archiveBtn.addEventListener("click", () => {
+    if (archivePanel.hidden) {
+      renderArchiveList();
+      catchupPanel.hidden = true;
+    }
+    archivePanel.hidden = !archivePanel.hidden;
+  });
+  archiveCloseBtn.addEventListener("click", () => {
+    archivePanel.hidden = true;
   });
 
   function startQuestion() {
@@ -539,6 +626,9 @@
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
     resultPanelEl.hidden = false;
+    // Nothing to review for a pre-archive-feature legacy entry that has no
+    // stored per-question results (see showArchivedResult()).
+    reviewBtn.hidden = results.length === 0;
   }
 
   // Same shape as the draw challenge's GRADE_MESSAGES but themed around
@@ -589,13 +679,13 @@
     const { records, isNewBest } = recordAttempt(RECORDS_KEY, pct, grade);
     updateBestScoreDisplay(records);
     const targetDate = activeDate || getTaipeiDateString();
-    recordHistoryEntry(HISTORY_KEY, targetDate, pct, grade);
+    // Stashes the full per-question results alongside score/grade so this
+    // day's score card (and review map) can be redrawn later from the
+    // archive without needing to be played again -- this is a one-shot
+    // challenge, there's no retry to fall back on.
+    recordHistoryEntry(HISTORY_KEY, targetDate, pct, grade, { totalPoints, results });
     renderResults(totalPoints, pct, grade, message, isNewBest);
   }
-
-  retryBtn.addEventListener("click", () => {
-    enterMode();
-  });
 
   // Draws every question from this round at its real location at once
   // (unlike the reveal during play, which only ever shows one at a time),

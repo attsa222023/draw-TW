@@ -63,11 +63,17 @@ function loadHistory(key) {
 // that day's own date instead). Keeps the best score/grade per date, same
 // "best sticks" rule as recordAttempt()'s running best. `key` picks which
 // mode's history this belongs to (CHALLENGE_HISTORY_KEY/PLACENAME_HISTORY_KEY).
-function recordHistoryEntry(key, dateStr, scorePct, grade) {
+//
+// `extra` is an optional plain object merged into the stored entry
+// alongside {score, grade} -- used by the placename challenge's archive
+// feature to also stash that day's full per-question results (so a past
+// day's score card can be redrawn later without needing to have been
+// played again). The draw challenge doesn't pass this and is unaffected.
+function recordHistoryEntry(key, dateStr, scorePct, grade, extra) {
   const history = loadHistory(key);
   const existing = history[dateStr];
   if (!existing || scorePct > existing.score) {
-    history[dateStr] = { score: scorePct, grade };
+    history[dateStr] = Object.assign({ score: scorePct, grade }, extra || {});
     try {
       localStorage.setItem(key, JSON.stringify(history));
     } catch (e) {

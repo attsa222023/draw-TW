@@ -17,6 +17,35 @@
   justify-content: center;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Mirrors ../style.css's #catchup-panel/#catchup-list/#catchup-close-btn
+   (the draw challenge's catch-up picker) -- same look, separate rule since
+   this is its own panel with its own ids. Its rows reuse the shared
+   .catchup-item/.catchup-date/.catchup-summary/.catchup-status classes
+   as-is, so only the panel/list/button containers need their own CSS. */
+#archive-panel {
+  width: 100%;
+  max-width: 420px;
+  margin: 10px auto 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+#archive-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#archive-close-btn {
+  margin-top: 10px;
+  padding: 6px 16px;
+  font-size: 0.8rem;
 }
 
 #tutorial-overlay {
@@ -80,6 +109,14 @@
   gap: 8px;
   justify-content: center;
   margin-top: 14px;
+}
+
+/* #tier-picker sets its own `display`, which otherwise beats the UA's
+   default [hidden]{display:none} (author rules always win over UA rules
+   of any specificity) -- without this override, setting .hidden = true
+   on it from game.js would have no visual effect. */
+#tier-picker[hidden] {
+  display: none;
 }
 
 .tier-btn {
