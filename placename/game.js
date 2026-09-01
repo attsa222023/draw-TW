@@ -215,6 +215,11 @@
   let circlePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
   let answered = false; // true once the current question has been confirmed (reveal shown)
   let results = []; // [{name, lon, lat, tierIndex, correct, distanceKm}], one per answered question
+  // True while showing a past day's read-only score card (showArchivedResult).
+  // There's nothing left to hide there -- unlike a just-finished round, the
+  // review map is shown immediately and stays up even behind the score
+  // panel, rather than waiting for a "🔍 複習地名位置" click.
+  let viewingArchivedResult = false;
 
   // County borders (thin lines) + name labels, drawn over the filled
   // island when the difficulty toggle is on.
@@ -353,6 +358,7 @@
     tierPickerEl.hidden = false;
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
+    viewingArchivedResult = false;
 
     questions = activeDate ? questionsForDate(activeDate) : todaysQuestions();
     questionIndex = 0;
@@ -364,8 +370,12 @@
   }
 
   // Shows a past day's already-recorded result read-only: same score
-  // card + review map as finishing a round normally produces, just
-  // sourced from the archived entry instead of a just-played `results`.
+  // card as finishing a round normally produces, just sourced from the
+  // archived entry instead of a just-played `results`. Unlike a
+  // just-finished round, the review map is drawn immediately (no need to
+  // click "🔍 複習地名位置" first) -- there's no fresh reveal being
+  // spoiled here, it's already history.
+  //
   // Entries recorded before this archive feature shipped only have
   // {score, grade} (no results/totalPoints) -- reconstruct a reasonable
   // totalPoints from the percentage and fall back to an empty results
@@ -379,6 +389,8 @@
       typeof entry.totalPoints === "number" ? entry.totalPoints : Math.round((entry.score / 100) * MAX_SCORE);
     const [computedGrade, message] = gradeFor(entry.score, GRADE_MESSAGES);
     renderResults(totalPoints, entry.score, entry.grade || computedGrade, message, false);
+    viewingArchivedResult = true;
+    if (results.length > 0) drawReview();
   }
 
   function showTutorial() {
@@ -728,7 +740,12 @@
   });
   reviewBackBtn.addEventListener("click", () => {
     reviewControlsEl.hidden = true;
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    // A just-finished round's score panel shows a blank map until the
+    // player clicks review again; an archived one keeps the review markers
+    // up underneath it the whole time (see showArchivedResult), so redraw
+    // rather than clear here.
+    if (viewingArchivedResult) drawReview();
+    else resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultPanelEl.hidden = false;
   });
 
