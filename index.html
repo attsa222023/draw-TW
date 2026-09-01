@@ -4,21 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>畫出台灣</title>
-<!-- Bump ?v=N on style.css/taiwan-data.js/records.js/game.js whenever any
-     of them change -- GitHub Pages' CDN + browsers cache these aggressively
-     enough that without a cache-busting query string, a deploy can take a
-     long time (or a manual hard-refresh) to actually reach a returning
-     visitor, even though the new file is live on the server. -->
-<link rel="stylesheet" href="style.css?v=21">
+<!-- Bump ?v=N on style.css/shared.js/shared-outline.js/draw-data.js/
+     records.js/game.js whenever any of them change -- GitHub Pages' CDN +
+     browsers cache these aggressively enough that without a cache-busting
+     query string, a deploy can take a long time (or a manual hard-refresh)
+     to actually reach a returning visitor, even though the new file is
+     live on the server. -->
+<link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
   <header>
     <h1>畫出台灣</h1>
-    <p id="tagline" class="subtitle tagline">憑記憶畫出台灣本島的輪廓，看看你能拿到幾分</p>
+    <p class="subtitle tagline">憑記憶畫出台灣本島的輪廓，看看你能拿到幾分</p>
     <div id="mode-toggle">
       <button id="mode-normal-btn" class="mode-btn" type="button">一般模式</button>
       <button id="mode-challenge-btn" class="mode-btn" type="button">🗓️ 每日挑戰</button>
-      <button id="mode-placename-btn" class="mode-btn" type="button">📍 地名挑戰</button>
     </div>
     <p id="challenge-desc" class="subtitle" hidden></p>
     <div id="challenge-tools" hidden>
@@ -31,6 +31,7 @@
       <button id="catchup-close-btn" type="button">關閉</button>
     </div>
     <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
+    <p class="cross-link"><a href="placename/">📍 也來玩每日台灣地名挑戰 →</a></p>
   </header>
 
   <main>
@@ -43,39 +44,6 @@
       </label>
     </div>
 
-    <div id="placename-hint-bar" hidden>
-      <span id="placename-question" class="hint"></span>
-      <label id="county-toggle-label" class="hint toggle-hint">
-        <input type="checkbox" id="county-overlay-toggle" checked>
-        顯示縣市名稱與界線
-      </label>
-      <button id="placename-help-btn" class="hint" type="button">❓ 怎麼玩？</button>
-    </div>
-
-    <div id="placename-tools" hidden>
-      <button id="placename-catchup-btn" type="button">📅 補玩錯過的挑戰</button>
-      <button id="placename-back-to-today-btn" type="button" hidden>↩️ 返回今天</button>
-    </div>
-    <div id="placename-catchup-panel" hidden>
-      <p class="catchup-panel-title">選擇想補玩的日期：</p>
-      <div id="placename-catchup-list"></div>
-      <button id="placename-catchup-close-btn" type="button">關閉</button>
-    </div>
-
-    <div id="placename-tutorial-overlay" hidden>
-      <div id="placename-tutorial-modal">
-        <h2>📍 每日台灣地名挑戰</h2>
-        <ul>
-          <li>🗺️ 地圖上已經顯示完整台灣本島，縣市名稱與界線可依難度自由開關</li>
-          <li>📍 每天依序出現 5 個地名</li>
-          <li>⭕ 每題選一個大小不同的圓，點在地圖上你覺得那個地名所在的位置</li>
-          <li>🎯 圈要準確涵蓋到地名的位置才算答對，圈越小分數越高（100／80／60／40／20 分）</li>
-          <li>♻️ 每種尺寸的圈限用一次，答錯就是那題 0 分，滿分共 300 分</li>
-        </ul>
-        <button id="placename-tutorial-close-btn" type="button">開始挑戰！</button>
-      </div>
-    </div>
-
     <div id="canvas-wrap">
       <canvas id="bg-canvas"></canvas>
       <canvas id="draw-canvas"></canvas>
@@ -83,36 +51,12 @@
       <div id="rotate-hint" hidden>📱 今天的地圖偏橫向，建議把手機轉成橫向遊玩，畫布會大很多！</div>
     </div>
 
-    <div id="placename-tier-picker" hidden></div>
-    <p id="placename-feedback" class="subtitle" hidden></p>
-
     <div id="controls">
       <button id="undo-btn" type="button">復原</button>
       <button id="clear-btn" type="button">清除重畫</button>
       <button id="finish-btn" type="button">完成</button>
       <button id="download-card-btn" type="button" hidden>下載成績卡片</button>
       <button id="retry-btn" type="button" hidden>再玩一次</button>
-    </div>
-
-    <div id="placename-controls" hidden>
-      <button id="confirm-placename-btn" type="button" hidden>確認位置</button>
-      <button id="next-placename-btn" type="button" hidden>下一題</button>
-    </div>
-
-    <div id="placename-result-panel" hidden>
-      <div id="placename-score-grade"></div>
-      <div id="placename-score-number"></div>
-      <p id="placename-score-message"></p>
-      <div id="placename-breakdown"></div>
-      <div id="placename-result-buttons">
-        <button id="placename-review-btn" type="button">🔍 複習地名位置</button>
-        <button id="placename-retry-btn" type="button">再玩一次</button>
-      </div>
-    </div>
-
-    <div id="placename-review-controls" hidden>
-      <p class="subtitle">🟢 答對的地名　🔴 答錯的地名</p>
-      <button id="placename-review-back-btn" type="button">↩️ 返回成績</button>
     </div>
 
     <div id="result-panel" hidden>
@@ -150,8 +94,10 @@
     </div>
   </main>
 
-  <script src="taiwan-data.js?v=21"></script>
-  <script src="records.js?v=21"></script>
-  <script src="game.js?v=21"></script>
+  <script src="shared-outline.js?v=22"></script>
+  <script src="shared.js?v=22"></script>
+  <script src="draw-data.js?v=22"></script>
+  <script src="records.js?v=22"></script>
+  <script src="game.js?v=22"></script>
 </body>
 </html>

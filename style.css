@@ -1,3 +1,10 @@
+/* Shared base styles -- loaded by both this page and placename/index.html
+   (as ../style.css there), which layers its own placename/style.css on
+   top for anything placename-specific. Both pages reuse the exact same
+   element IDs/classes wherever the visual pattern is identical (hint-bar,
+   controls, catchup-panel/list/item, result-panel, score-grade/number/
+   message, buttons), so a fix here fixes both at once; only genuinely
+   different pieces live in each page's own stylesheet. */
 :root {
   --ocean-deep: #0b3d5c;
   --ocean-mid: #1c5d82;
@@ -49,6 +56,22 @@ h1 {
   opacity: 1;
   color: var(--accent);
   font-weight: 600;
+}
+
+.cross-link {
+  margin-top: 10px;
+  font-size: 0.82rem;
+}
+
+.cross-link a {
+  color: var(--ink);
+  opacity: 0.75;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(234, 246, 255, 0.35);
+}
+
+.cross-link a:hover {
+  opacity: 1;
 }
 
 #mode-toggle {
@@ -142,55 +165,6 @@ h1 {
   gap: 6px;
 }
 
-/* Placename challenge's own catch-up controls -- same markup/behavior
-   pattern as #challenge-tools/#catchup-panel above, just a separate set
-   of elements since the two modes' catch-up state (activeChallengeDate
-   vs activePlacenameDate) is independent. */
-#placename-tools {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-#placename-tools[hidden] {
-  display: none;
-}
-
-#placename-catchup-btn,
-#placename-back-to-today-btn {
-  padding: 5px 12px;
-  font-size: 0.78rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: var(--panel-bg);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-#placename-catchup-btn:hover,
-#placename-back-to-today-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-#placename-catchup-panel {
-  width: 100%;
-  max-width: 420px;
-  margin: 10px auto 0;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--panel-bg);
-  text-align: left;
-}
-
-#placename-catchup-list {
-  max-height: 260px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .catchup-item {
   display: grid;
   grid-template-columns: 56px 1fr auto;
@@ -238,8 +212,7 @@ h1 {
   font-size: 0.75rem;
 }
 
-#catchup-close-btn,
-#placename-catchup-close-btn {
+#catchup-close-btn {
   margin-top: 10px;
   padding: 6px 16px;
   font-size: 0.8rem;
@@ -290,217 +263,6 @@ main {
 
 .toggle-hint input {
   cursor: pointer;
-}
-
-/* Placename challenge -- mirrors #hint-bar's layout exactly (shown only
-   while that mode is active, #hint-bar hidden in its place). */
-#placename-hint-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  justify-content: center;
-  margin-bottom: 12px;
-  font-size: 0.85rem;
-}
-
-#placename-hint-bar[hidden] {
-  display: none;
-}
-
-#placename-help-btn {
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-#placename-tutorial-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 20px;
-}
-
-#placename-tutorial-overlay[hidden] {
-  display: none;
-}
-
-#placename-tutorial-modal {
-  max-width: 420px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #1c5d82 0%, #0b3d5c 100%);
-  border-radius: 16px;
-  padding: 22px 24px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  text-align: left;
-}
-
-#placename-tutorial-modal h2 {
-  margin: 0 0 14px;
-  font-size: 1.3rem;
-  text-align: center;
-}
-
-#placename-tutorial-modal ul {
-  margin: 0 0 18px;
-  padding-left: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-#placename-tutorial-modal li {
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-#placename-tutorial-close-btn {
-  display: block;
-  width: 100%;
-  background: var(--accent);
-  color: #2a1a00;
-  font-weight: 700;
-}
-
-#placename-tier-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 14px;
-}
-
-#placename-tier-picker[hidden] {
-  display: none;
-}
-
-.tier-btn {
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 2px solid var(--ocean-light);
-  background: transparent;
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.tier-btn:hover:not(:disabled) {
-  background: var(--ocean-light);
-}
-
-.tier-btn.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #2a1a00;
-  font-weight: 700;
-}
-
-.tier-btn.used {
-  opacity: 0.35;
-  border-style: dashed;
-  cursor: not-allowed;
-}
-
-#placename-feedback {
-  margin-top: 10px;
-  min-height: 1.2em;
-  font-weight: 600;
-}
-
-#placename-controls {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-#placename-controls[hidden] {
-  display: none;
-}
-
-#confirm-placename-btn {
-  background: var(--accent);
-  color: #2a1a00;
-  font-weight: 700;
-}
-
-#placename-result-panel {
-  margin-top: 20px;
-  padding: 18px 24px;
-  border-radius: 12px;
-  background: var(--panel-bg);
-  text-align: center;
-  width: 100%;
-}
-
-#placename-score-grade {
-  font-size: 3rem;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
-}
-
-#placename-score-number {
-  font-size: 1.3rem;
-  margin-top: 4px;
-  opacity: 0.9;
-}
-
-#placename-score-message {
-  margin: 10px 0 4px;
-  opacity: 0.85;
-}
-
-#placename-breakdown {
-  margin: 14px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
-}
-
-#placename-result-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-#placename-retry-btn {
-  background: var(--real-color);
-  color: #06331a;
-  font-weight: 700;
-}
-
-#placename-review-btn {
-  background: transparent;
-  border: 2px solid var(--ocean-light);
-  color: var(--ink);
-}
-
-#placename-review-btn:hover {
-  background: var(--ocean-light);
-}
-
-#placename-review-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-#placename-review-controls[hidden] {
-  display: none;
 }
 
 #canvas-wrap {

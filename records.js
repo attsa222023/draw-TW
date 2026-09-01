@@ -1,6 +1,8 @@
-// localStorage-backed high score tracking for the Draw Taiwan game.
-// Kept as a small global (not an IIFE) so game.js can call it directly,
-// same pattern as taiwan-data.js exposing TAIWAN_OUTLINE.
+// localStorage-backed high score tracking, shared by both the draw game
+// (repo root) and the placename challenge (/placename/) -- both pages
+// load this exact file directly. Kept as a small global (not an IIFE) so
+// each page's own game.js can call it directly, same pattern as
+// shared-outline.js exposing TAIWAN_OUTLINE.
 //
 // Takes a storage key so normal mode and daily-challenge mode (which has
 // varying difficulty day to day, so its scores aren't comparable to normal

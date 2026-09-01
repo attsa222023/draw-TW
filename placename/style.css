@@ -1,0 +1,161 @@
+/* Placename-challenge-only additions, layered on top of ../style.css's
+   shared base (hint-bar, controls, catchup-panel/list/item, result-panel,
+   score-grade/number/message, buttons -- this page reuses those exact IDs
+   so a fix to the shared file fixes both pages at once). */
+
+#help-btn {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Same wrapper pattern as ../style.css's #challenge-tools (the draw
+   challenge's own catch-up button row) -- a separate rule since this
+   page names its own version #tools rather than reusing that exact ID. */
+#tools {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 20px;
+}
+
+#tutorial-overlay[hidden] {
+  display: none;
+}
+
+#tutorial-modal {
+  max-width: 420px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1c5d82 0%, #0b3d5c 100%);
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+#tutorial-modal h2 {
+  margin: 0 0 14px;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+#tutorial-modal ul {
+  margin: 0 0 18px;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#tutorial-modal li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+#tutorial-close-btn {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+#tier-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.tier-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid var(--ocean-light);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tier-btn:hover:not(:disabled) {
+  background: var(--ocean-light);
+}
+
+.tier-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+.tier-btn.used {
+  opacity: 0.35;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+#feedback {
+  margin-top: 10px;
+  min-height: 1.2em;
+  font-weight: 600;
+}
+
+#confirm-btn {
+  background: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+#breakdown {
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+#result-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+#review-btn {
+  background: transparent;
+  border: 2px solid var(--ocean-light);
+  color: var(--ink);
+}
+
+#review-btn:hover {
+  background: var(--ocean-light);
+}
+
+#review-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+#review-controls[hidden] {
+  display: none;
+}

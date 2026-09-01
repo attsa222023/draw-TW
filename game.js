@@ -1,22 +1,15 @@
 (() => {
   "use strict";
 
-  // ---- Projection setup ---------------------------------------------------
-  // Equirectangular projection with longitude scaled by cos(latitude) so
-  // shapes aren't east-west stretched. Always anchored (for the underlying
-  // km math) at true north -- rotation for daily-challenge mode is applied
-  // afterward, in pixel space, so it never has to touch this part.
-  const KM_PER_LAT = 110.574;
-  const KM_PER_PX = 0.45; // world scale: 1 canvas pixel = 0.45 km
-  const PAD = 50; // canvas padding around the shape, in pixels
+  // Shared projection constants/functions (KM_PER_LAT, KM_PER_PX, PAD,
+  // northPoint, projectKm, rotateXY), date/shuffle utilities
+  // (getTaipeiDateString, mulberry32, shuffledIndices, dateStringToDayIndex,
+  // dayIndexToDateString, pastDateStrings, formatDisplayDate), and canvas
+  // helpers (roundRectPath, drawLabelPill, paintOceanBase, pickRandom,
+  // gradeFor) all come from shared.js, loaded before this file.
+
   const SCALE_BAR_KM = 50;
 
-  function extremePoint(compare) {
-    let best = TAIWAN_OUTLINE[0];
-    for (const p of TAIWAN_OUTLINE) if (compare(p, best)) best = p;
-    return { lon: best[0], lat: best[1] };
-  }
-  const northPoint = extremePoint((p, best) => p[1] > best[1]);
   const southPoint = extremePoint((p, best) => p[1] < best[1]);
   const eastPoint = extremePoint((p, best) => p[0] > best[0]);
   const westPoint = extremePoint((p, best) => p[0] < best[0]);
@@ -30,33 +23,13 @@
   const EAST_LABEL = "最東端(三貂角)";
   const WEST_LABEL = "最西端(國聖港)";
 
-  let latSum = 0;
-  for (const p of TAIWAN_OUTLINE) latSum += p[1];
-  const REF_LAT = latSum / TAIWAN_OUTLINE.length;
-  const KM_PER_LON = 111.32 * Math.cos((REF_LAT * Math.PI) / 180);
-
-  function projectKm(lon, lat) {
-    return {
-      x: (lon - northPoint.lon) * KM_PER_LON,
-      y: (northPoint.lat - lat) * KM_PER_LAT, // south is positive (down on screen)
-    };
-  }
-
-  function rotateXY(pt, angleDeg) {
-    if (!angleDeg) return pt;
-    const rad = (angleDeg * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    return { x: pt.x * cos - pt.y * sin, y: pt.x * sin + pt.y * cos };
-  }
-
   // Whether a point is close enough to TAIWAN_OUTLINE to visually read as
   // sitting ON the coastline once drawn, rather than as a dot floating
   // nearby -- used to decide whether a daily-challenge reference point gets
   // framed as a boundary "起點" or an internal "參考點". Tied directly to
   // what actually renders (the marker's own radius) rather than a
   // hand-picked km cutoff, so it can't drift out of sync with the art, and
-  // any landmark added to taiwan-data.js later is classified automatically.
+  // any landmark added to draw-data.js later is classified automatically.
   const MARKER_RADIUS_PX = 7;
   const COASTAL_THRESHOLD_KM = MARKER_RADIUS_PX * KM_PER_PX;
 
@@ -95,19 +68,6 @@
   // usual single north-point marker. Seeded from today's date in Taipei
   // time, so it's the same for everyone playing "today" and changes every
   // day regardless of the player's own timezone.
-  function getTaipeiDateString() {
-    try {
-      return new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Taipei",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date());
-    } catch (e) {
-      return new Date().toISOString().slice(0, 10); // fallback: UTC date
-    }
-  }
-
   const ROTATION_ANGLES = [30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
 
   // Point-type reference candidates: the 3 non-north extremes, every major
@@ -179,47 +139,10 @@
   // long before every entry has actually appeared once. Instead, days are
   // grouped into "cycles" of exactly poolSize days; each cycle gets its own
   // shuffled permutation of every pool index (seeded from the cycle
-  // number via a small deterministic PRNG), so within one cycle every
-  // variant appears exactly once, and the next cycle (poolSize days later,
-  // ~5 years at the current size) gets an independently-reshuffled order
-  // rather than repeating the same sequence.
-  function mulberry32(seed) {
-    return function () {
-      seed |= 0;
-      seed = (seed + 0x6d2b79f5) | 0;
-      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  function shuffledIndices(n, seed) {
-    const arr = Array.from({ length: n }, (_, i) => i);
-    const rand = mulberry32(seed);
-    for (let i = n - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-
-  // Days since the Unix epoch for a "YYYY-MM-DD" string, and back again --
-  // both via Date.UTC/getUTC* (never the local browser timezone) so this
-  // is a pure calendar-date calculation, independent of the player's own
-  // timezone (the date string itself is already a Taipei calendar date).
-  function dateStringToDayIndex(dateStr) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
-  }
-
-  function dayIndexToDateString(dayIndex) {
-    const dt = new Date(dayIndex * 86400000);
-    const y = dt.getUTCFullYear();
-    const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const d = String(dt.getUTCDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-
+  // number via a small deterministic PRNG, see shared.js), so within one
+  // cycle every variant appears exactly once, and the next cycle (poolSize
+  // days later, ~5 years at the current size) gets an
+  // independently-reshuffled order rather than repeating the same sequence.
   function variantForDayIndex(dayIndex) {
     const poolSize = DAILY_VARIANT_POOL.length;
     const cycle = Math.floor(dayIndex / poolSize);
@@ -237,7 +160,7 @@
   // Turns a "pair" variant's two raw candidates into what actually gets
   // drawn: a list of point markers (each with a role) and a list of
   // river/mountain overlays. Shared by applyMode() (drawing) and
-  // describeTodayVariant() (the challenge-desc text) so the two can never
+  // describeVariant() (the challenge-desc text) so the two can never
   // drift out of sync with each other.
   //
   // Role assignment: a candidate that qualifies as a boundary "起點"
@@ -286,124 +209,6 @@
   // size (so "no repeats" never becomes a visible concern there) and a
   // reasonable amount to scroll through for "I missed a few days".
   const CATCHUP_WINDOW_DAYS = 30;
-
-  // Past CATCHUP_WINDOW_DAYS date strings, most recent (yesterday) first.
-  // Never includes today -- that's played via the normal challenge button.
-  function pastDateStrings(n) {
-    const todayIdx = dateStringToDayIndex(getTaipeiDateString());
-    const out = [];
-    for (let i = 1; i <= n; i++) out.push(dayIndexToDateString(todayIdx - i));
-    return out;
-  }
-
-  function formatDisplayDate(dateStr) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d));
-    const weekday = new Intl.DateTimeFormat("zh-Hant", { weekday: "narrow", timeZone: "UTC" }).format(dt);
-    return `${m}/${d} (${weekday})`;
-  }
-
-  // ---- Daily Placename Challenge ("每日台灣地名挑戰") ---------------------
-  // A separate mode from the draw challenge: the player sees the full
-  // island (optionally with county names/borders) and, for 5 place names
-  // shown one at a time, picks one of 5 differently-sized circles (each
-  // used exactly once across the 5 questions) and drops it on the map
-  // trying to cover that place. Smaller circle -> more points, but only if
-  // it's actually placed accurately enough to cover the target.
-  //
-  // Radii chosen so the smallest circle is roughly "a small town" (a few
-  // hundred km²) and the largest is roughly a third of Taiwan's ~35,800km²
-  // land area (area = πr² => r ≈ 62km for 1/3 of that).
-  const PLACENAME_CIRCLE_TIERS = [
-    { radiusKm: 8, points: 100, label: "極小" },
-    { radiusKm: 18, points: 80, label: "小" },
-    { radiusKm: 32, points: 60, label: "中" },
-    { radiusKm: 48, points: 40, label: "大" },
-    { radiusKm: 62, points: 20, label: "極大" },
-  ];
-  const PLACENAME_QUESTIONS_PER_DAY = 5;
-  const PLACENAME_MAX_SCORE = PLACENAME_CIRCLE_TIERS.reduce((sum, t) => sum + t.points, 0);
-
-  // Which PLACENAME_POOL size applies to a given day. Growing the pool
-  // (appending to PLACENAME_POOL in taiwan-data.js) must never change a
-  // question that's already been shown -- including today's, if the
-  // growth ships before the player's next visit -- so each day resolves
-  // against whatever poolSize was in effect as of ITS OWN epoch, not
-  // however large the array happens to be right now.
-  //
-  // IMPORTANT -- when appending to PLACENAME_POOL later: add a new entry
-  // here too, with fromDayIndex = dateStringToDayIndex(<the date the
-  // deploy actually goes live>) and poolSize = PLACENAME_POOL.length
-  // (the new, larger total). Do NOT edit or remove any existing entry --
-  // every day before that boundary keeps resolving against the smaller,
-  // frozen size, which is what makes appending safe. Keep entries sorted
-  // by fromDayIndex ascending.
-  const PLACENAME_POOL_EPOCHS = [
-    { fromDayIndex: -Infinity, poolSize: 314 }, // v1 pool, shipped 2026-08-27
-    // v2: +10 landmarks (indices 314-323), pushed 2026-08-27 but effective
-    // the next day so today's already-shown questions aren't disturbed.
-    { fromDayIndex: dateStringToDayIndex("2026-08-28"), poolSize: 324 },
-    // v3: +10 more landmarks (indices 324-333), pushed 2026-08-27. Set to
-    // 08-29 (not 08-28, which the v2 epoch already claims) so 08-28 still
-    // gets its own full day on exactly the 324-pool before growing again.
-    { fromDayIndex: dateStringToDayIndex("2026-08-29"), poolSize: 334 },
-    // v4: +11 more landmarks (indices 334-344), pushed 2026-09-01,
-    // effective the next day so today's questions aren't disturbed.
-    { fromDayIndex: dateStringToDayIndex("2026-09-02"), poolSize: 345 },
-    // v5: +7 hot-spring-area landmarks (indices 345-351), pushed
-    // 2026-09-01 (same day as v4). Set to 09-03 (not 09-02, which v4
-    // already claims) so 09-02 still gets its own full day on exactly
-    // the v4 (345) pool before growing again.
-    { fromDayIndex: dateStringToDayIndex("2026-09-03"), poolSize: 352 },
-  ];
-
-  function placenamePoolSizeForDayIndex(dayIndex) {
-    let size = PLACENAME_POOL_EPOCHS[0].poolSize;
-    for (const epoch of PLACENAME_POOL_EPOCHS) {
-      if (epoch.fromDayIndex <= dayIndex) size = epoch.poolSize;
-      else break;
-    }
-    return size;
-  }
-
-  // Picks PLACENAME_QUESTIONS_PER_DAY distinct indices into PLACENAME_POOL
-  // for a given day, using the same no-repeat-within-a-cycle shuffle as
-  // the draw-challenge pool, but scoped to that day's frozen poolSize (see
-  // above) rather than the pool's current live length -- the actual
-  // append-safety guarantee lives in that scoping, not in this function.
-  // When poolSize isn't a multiple of 5, the last day of a cycle wraps
-  // around and repeats a few of that cycle's earlier picks rather than
-  // coming up short.
-  function placenameIndicesForDayIndex(dayIndex) {
-    const n = placenamePoolSizeForDayIndex(dayIndex);
-    const cycleLen = Math.ceil(n / PLACENAME_QUESTIONS_PER_DAY);
-    const cycle = Math.floor(dayIndex / cycleLen);
-    const positionInCycle = ((dayIndex % cycleLen) + cycleLen) % cycleLen;
-    const order = shuffledIndices(n, cycle);
-    const start = positionInCycle * PLACENAME_QUESTIONS_PER_DAY;
-    const picks = [];
-    for (let k = 0; k < PLACENAME_QUESTIONS_PER_DAY; k++) picks.push(order[(start + k) % n]);
-    return picks;
-  }
-
-  function placenameQuestionsForDate(dateStr) {
-    const dayIndex = dateStringToDayIndex(dateStr);
-    return placenameIndicesForDayIndex(dayIndex).map((i) => PLACENAME_POOL[i]);
-  }
-
-  function todaysPlacenames() {
-    return placenameQuestionsForDate(getTaipeiDateString());
-  }
-
-  function computePlacenameScore(results) {
-    const totalPoints = results.reduce(
-      (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
-      0
-    );
-    const correctCount = results.filter((r) => r.correct).length;
-    const pct = Math.round((totalPoints / PLACENAME_MAX_SCORE) * 100);
-    return { totalPoints, correctCount, pct };
-  }
 
   // ---- Canvas / DOM setup --------------------------------------------------
   const wrap = document.getElementById("canvas-wrap");
@@ -500,45 +305,6 @@
   }
   let showSouthMarker = loadShowSouthMarker();
 
-  // Whether the placename challenge shows county names/borders -- its one
-  // difficulty toggle. Persisted the same way as showSouthMarker above.
-  const SHOW_COUNTY_OVERLAY_KEY = "drawTaiwanShowCountyOverlay";
-  function loadShowCountyOverlay() {
-    try {
-      const raw = localStorage.getItem(SHOW_COUNTY_OVERLAY_KEY);
-      return raw === null ? true : raw === "1";
-    } catch (e) {
-      return true;
-    }
-  }
-  function saveShowCountyOverlay(value) {
-    try {
-      localStorage.setItem(SHOW_COUNTY_OVERLAY_KEY, value ? "1" : "0");
-    } catch (e) {
-      /* ignore (private browsing, quota, etc.) */
-    }
-  }
-  let showCountyOverlay = loadShowCountyOverlay();
-
-  // Whether the placename mode's how-to-play modal has already been shown
-  // and dismissed once -- shown automatically the first time, reopenable
-  // anytime afterward via the "❓ 怎麼玩？" button.
-  const PLACENAME_TUTORIAL_SEEN_KEY = "drawTaiwanPlacenameTutorialSeen";
-  function hasSeenPlacenameTutorial() {
-    try {
-      return localStorage.getItem(PLACENAME_TUTORIAL_SEEN_KEY) === "1";
-    } catch (e) {
-      return false;
-    }
-  }
-  function markPlacenameTutorialSeen() {
-    try {
-      localStorage.setItem(PLACENAME_TUTORIAL_SEEN_KEY, "1");
-    } catch (e) {
-      /* ignore (private browsing, quota, etc.) */
-    }
-  }
-
   // Today's point markers ({point, label, style}, style one of
   // 起點/中繼點/參考點) and line overlays ({kind, path, label}, kind one of
   // river/mountain) -- 1 point marker (north) in normal mode and on a
@@ -549,9 +315,7 @@
   let challengeMode = false;
 
   // Catch-up state: null means "today's challenge"; otherwise a
-  // "YYYY-MM-DD" Taipei date string for a past day being replayed. Kept
-  // separate from `challengeMode` so entering/leaving challenge mode is
-  // orthogonal to which day within it is being played.
+  // "YYYY-MM-DD" Taipei date string for a past day being replayed.
   let activeChallengeDate = null;
   // The variant actually resolved for what's currently on screen -- today's
   // or activeChallengeDate's -- set by applyMode() and read by
@@ -559,57 +323,6 @@
   // (which reshuffles the whole pool) on every redraw.
   let activeVariant = null;
 
-  // Placename-challenge state -- mutually exclusive with challengeMode
-  // (entering this mode sets challengeMode false and vice versa; only one
-  // of the three top-level modes -- normal draw / draw challenge /
-  // placename challenge -- is ever active at once).
-  let placenameMode = false;
-  let placenameQuestions = []; // today's questions, in play order
-  let placenameQuestionIndex = 0;
-  let placenameAvailableTiers = []; // indices into PLACENAME_CIRCLE_TIERS not yet used this game
-  let placenameSelectedTierIndex = null; // tier picked for the CURRENT question, if any
-  let placenameCirclePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
-  let placenameAnswered = false; // true once the current question has been confirmed (reveal shown)
-  let placenameResults = []; // [{name, tierIndex, correct, distanceKm}], one per answered question
-  // Catch-up state, same idea as activeChallengeDate for the draw
-  // challenge: null means "today's 5 questions"; otherwise a
-  // "YYYY-MM-DD" Taipei date string for a past day being replayed.
-  let activePlacenameDate = null;
-
-  // Rounded-rect helper for the small background pill behind river/mountain
-  // labels, so the label stays legible over the wave texture/ocean gradient.
-  function roundRectPath(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  // `ctx`/`textColor` default to the river/mountain-overlay call sites'
-  // original behavior (background layer, white text); the placename
-  // review screen below passes its own canvas/color explicitly.
-  function drawLabelPill(cx, cy, text, ctx, textColor) {
-    ctx = ctx || bgCtx;
-    textColor = textColor || "#ffffff";
-    ctx.font = "bold 13px sans-serif";
-    const w = ctx.measureText(text).width + 16;
-    const h = 22;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 6);
-    ctx.fill();
-    ctx.fillStyle = textColor;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, cx, cy);
-    ctx.textBaseline = "alphabetic"; // restore the default other draw calls assume
-  }
-
-  // Places points every ~spacingPx along a polyline (each segment gets its
-  // own evenly-divided count, so spacing is only approximate at segment
-  // boundaries -- fine for a casual visual reference, not measurement).
   function resamplePath(pts, spacingPx) {
     const out = [];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -645,7 +358,7 @@
     bgCtx.globalAlpha = 1;
 
     const mid = pts[Math.floor(pts.length / 2)];
-    drawLabelPill(mid.x, mid.y - 16, label);
+    drawLabelPill(mid.x, mid.y - 16, label, bgCtx);
   }
 
   function drawMountainRange(path, label) {
@@ -659,7 +372,7 @@
     bgCtx.textBaseline = "alphabetic";
 
     const mid = pts[Math.floor(pts.length / 2)];
-    drawLabelPill(mid.x, mid.y - 22, label);
+    drawLabelPill(mid.x, mid.y - 22, label, bgCtx);
   }
 
   function drawPointMarker(px, color, label, coastal) {
@@ -697,32 +410,6 @@
     bgCtx.font = "bold 13px sans-serif";
     bgCtx.textAlign = "center";
     bgCtx.fillText(label, labelX, labelY);
-  }
-
-  // Ocean gradient + wave texture, shared by drawBackground() (normal/daily-
-  // challenge modes, which never show the actual coastline) and
-  // drawPlacenameBackground() (which does) -- kept as one function so the
-  // two never visually drift apart.
-  function paintOceanBase(ctx, w, h) {
-    ctx.clearRect(0, 0, w, h);
-
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#1c5d82");
-    grad.addColorStop(1, "#0b3d5c");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 2;
-    for (let y = 20; y < h; y += 34) {
-      ctx.beginPath();
-      for (let x = 0; x <= w; x += 10) {
-        const wy = y + Math.sin((x + y) * 0.05) * 4;
-        if (x === 0) ctx.moveTo(x, wy);
-        else ctx.lineTo(x, wy);
-      }
-      ctx.stroke();
-    }
   }
 
   function drawBackground() {
@@ -799,50 +486,6 @@
     }
   }
 
-  // County borders (thin lines) + name labels, drawn over the filled
-  // island in drawPlacenameBackground() when the difficulty toggle is on.
-  function drawCountyOverlay() {
-    bgCtx.strokeStyle = "rgba(255,255,255,0.55)";
-    bgCtx.lineWidth = 1.25;
-    for (const county of TAIWAN_COUNTIES) {
-      const pts = county.path.map(([lon, lat]) => toCanvas(lon, lat));
-      bgCtx.beginPath();
-      bgCtx.moveTo(pts[0].x, pts[0].y);
-      for (const p of pts) bgCtx.lineTo(p.x, p.y);
-      bgCtx.closePath();
-      bgCtx.stroke();
-    }
-    bgCtx.fillStyle = "rgba(255,255,255,0.9)";
-    bgCtx.font = "11px sans-serif";
-    bgCtx.textAlign = "center";
-    bgCtx.textBaseline = "middle";
-    for (const county of TAIWAN_COUNTIES) {
-      const p = toCanvas(county.centroid[0], county.centroid[1]);
-      bgCtx.fillText(county.name, p.x, p.y);
-    }
-    bgCtx.textBaseline = "alphabetic";
-  }
-
-  // Unlike drawBackground() (normal/draw-challenge modes), this mode's
-  // whole premise is showing the player the actual island so they can
-  // place a place name relative to it -- so, uniquely, it fills/strokes
-  // REAL_PATH instead of leaving the map blank apart from hint markers.
-  function drawPlacenameBackground() {
-    paintOceanBase(bgCtx, CANVAS_W, CANVAS_H);
-
-    bgCtx.fillStyle = "#3a92c9";
-    bgCtx.beginPath();
-    bgCtx.moveTo(REAL_PATH[0].x, REAL_PATH[0].y);
-    for (const p of REAL_PATH) bgCtx.lineTo(p.x, p.y);
-    bgCtx.closePath();
-    bgCtx.fill();
-    bgCtx.strokeStyle = "#eaf6ff";
-    bgCtx.lineWidth = 2;
-    bgCtx.stroke();
-
-    if (showCountyOverlay) drawCountyOverlay();
-  }
-
   const southMarkerToggle = document.getElementById("south-marker-toggle");
   const southToggleLabel = document.getElementById("south-toggle-label");
   southMarkerToggle.checked = showSouthMarker;
@@ -850,14 +493,6 @@
     showSouthMarker = southMarkerToggle.checked;
     saveShowSouthMarker(showSouthMarker);
     drawBackground();
-  });
-
-  const countyOverlayToggle = document.getElementById("county-overlay-toggle");
-  countyOverlayToggle.checked = showCountyOverlay;
-  countyOverlayToggle.addEventListener("change", () => {
-    showCountyOverlay = countyOverlayToggle.checked;
-    saveShowCountyOverlay(showCountyOverlay);
-    drawPlacenameBackground();
   });
 
   // ---- Drawing interaction --------------------------------------------------
@@ -899,10 +534,6 @@
   }
 
   drawCanvas.addEventListener("pointerdown", (evt) => {
-    if (placenameMode) {
-      handlePlacenameClick(evt);
-      return;
-    }
     if (finished) return;
     try {
       drawCanvas.setPointerCapture(evt.pointerId);
@@ -958,7 +589,6 @@
   }
   const modeNormalBtn = document.getElementById("mode-normal-btn");
   const modeChallengeBtn = document.getElementById("mode-challenge-btn");
-  const modePlacenameBtn = document.getElementById("mode-placename-btn");
   const challengeDescEl = document.getElementById("challenge-desc");
   const challengeToolsEl = document.getElementById("challenge-tools");
   const catchupBtn = document.getElementById("catchup-btn");
@@ -966,39 +596,6 @@
   const catchupPanel = document.getElementById("catchup-panel");
   const catchupListEl = document.getElementById("catchup-list");
   const catchupCloseBtn = document.getElementById("catchup-close-btn");
-
-  const taglineEl = document.getElementById("tagline");
-  const TAGLINE_DRAW = "憑記憶畫出台灣本島的輪廓，看看你能拿到幾分";
-  const TAGLINE_PLACENAME = "地圖已經攤在你眼前，用最小的圈精準命中每個地名，拿下最高分！";
-
-  const hintBarEl = document.getElementById("hint-bar");
-  const controlsEl = document.getElementById("controls");
-  const placenameHintBarEl = document.getElementById("placename-hint-bar");
-  const placenameHelpBtn = document.getElementById("placename-help-btn");
-  const placenameTutorialOverlay = document.getElementById("placename-tutorial-overlay");
-  const placenameTutorialCloseBtn = document.getElementById("placename-tutorial-close-btn");
-  const placenameToolsEl = document.getElementById("placename-tools");
-  const placenameCatchupBtn = document.getElementById("placename-catchup-btn");
-  const placenameBackToTodayBtn = document.getElementById("placename-back-to-today-btn");
-  const placenameCatchupPanel = document.getElementById("placename-catchup-panel");
-  const placenameCatchupListEl = document.getElementById("placename-catchup-list");
-  const placenameCatchupCloseBtn = document.getElementById("placename-catchup-close-btn");
-  const placenameQuestionEl = document.getElementById("placename-question");
-  const placenameTierPickerEl = document.getElementById("placename-tier-picker");
-  const placenameFeedbackEl = document.getElementById("placename-feedback");
-  const placenameControlsEl = document.getElementById("placename-controls");
-  const confirmPlacenameBtn = document.getElementById("confirm-placename-btn");
-  const nextPlacenameBtn = document.getElementById("next-placename-btn");
-  const placenameResultPanelEl = document.getElementById("placename-result-panel");
-  const placenameScoreGradeEl = document.getElementById("placename-score-grade");
-  const placenameScoreNumberEl = document.getElementById("placename-score-number");
-  const placenameScoreMessageEl = document.getElementById("placename-score-message");
-  const placenameBreakdownEl = document.getElementById("placename-breakdown");
-  const placenameRetryBtn = document.getElementById("placename-retry-btn");
-  const placenameReviewBtn = document.getElementById("placename-review-btn");
-  const placenameReviewControlsEl = document.getElementById("placename-review-controls");
-  const placenameReviewBackBtn = document.getElementById("placename-review-back-btn");
-  const PLACENAME_RECORDS_KEY = "drawTaiwanPlacenameRecords";
 
   let lastResult = null; // {scores, grade, message} for the download-card button
 
@@ -1015,7 +612,6 @@
   // drawing (the canvas geometry may have just changed size), and updates
   // every mode-dependent bit of UI.
   function applyMode(isChallenge) {
-    placenameMode = false;
     challengeMode = isChallenge;
     activeVariant = isChallenge
       ? activeChallengeDate
@@ -1055,19 +651,6 @@
 
     modeNormalBtn.classList.toggle("active", !isChallenge);
     modeChallengeBtn.classList.toggle("active", isChallenge);
-    modePlacenameBtn.classList.toggle("active", false);
-    taglineEl.textContent = TAGLINE_DRAW;
-    hintBarEl.hidden = false;
-    controlsEl.hidden = false;
-    placenameHintBarEl.hidden = true;
-    placenameTierPickerEl.hidden = true;
-    placenameFeedbackEl.hidden = true;
-    placenameControlsEl.hidden = true;
-    placenameResultPanelEl.hidden = true;
-    placenameReviewControlsEl.hidden = true;
-    placenameTutorialOverlay.hidden = true;
-    placenameToolsEl.hidden = true;
-    placenameCatchupPanel.hidden = true;
     challengeDescEl.hidden = !isChallenge;
     if (isChallenge) {
       const dayLabel = activeChallengeDate ? `補玩 ${formatDisplayDate(activeChallengeDate)}` : "今日挑戰";
@@ -1097,23 +680,16 @@
   }
 
   modeNormalBtn.addEventListener("click", () => {
-    if (!challengeMode && !placenameMode) return;
+    if (!challengeMode) return;
     applyMode(false);
   });
   modeChallengeBtn.addEventListener("click", () => {
     // already showing today's challenge -- no-op, don't discard a
     // drawing in progress just because the (already-active) tab was
     // clicked again
-    if (challengeMode && !activeChallengeDate && !placenameMode) return;
+    if (challengeMode && !activeChallengeDate) return;
     activeChallengeDate = null; // clicking the tab always resets to today
     applyMode(true);
-  });
-  modePlacenameBtn.addEventListener("click", () => {
-    // already showing today's placename challenge -- no-op, same reasoning
-    // as modeChallengeBtn above
-    if (placenameMode && !activePlacenameDate) return;
-    activePlacenameDate = null; // clicking the tab always resets to today
-    enterPlacenameMode();
   });
 
   // ---- Catch-up: replay a past day's challenge ---------------------------
@@ -1152,328 +728,6 @@
   backToTodayBtn.addEventListener("click", () => {
     activeChallengeDate = null;
     applyMode(true);
-  });
-
-  // ---- Placename challenge game flow --------------------------------------
-  function enterPlacenameMode() {
-    challengeMode = false;
-    placenameMode = true;
-    // Always the plain, unrotated island in this mode. The whole pool is
-    // passed as extraPoints (not just today's 5) so the map's size/zoom
-    // stays constant day to day regardless of which entries come up --
-    // every current entry already fits the base bounding box, but this
-    // keeps it that way automatically if a future addition (an offshore
-    // island, say) wouldn't.
-    configureProjection(0, PLACENAME_POOL);
-
-    modeNormalBtn.classList.toggle("active", false);
-    modeChallengeBtn.classList.toggle("active", false);
-    modePlacenameBtn.classList.toggle("active", true);
-    taglineEl.textContent = TAGLINE_PLACENAME;
-    challengeDescEl.hidden = true;
-    challengeToolsEl.hidden = true;
-    catchupPanel.hidden = true;
-    hintBarEl.hidden = true;
-    controlsEl.hidden = true;
-    startHintEl.hidden = true;
-    resultPanel.hidden = true;
-    placenameHintBarEl.hidden = false;
-    placenameTierPickerEl.hidden = false;
-    placenameFeedbackEl.hidden = false;
-    placenameControlsEl.hidden = false;
-    placenameResultPanelEl.hidden = true;
-    placenameReviewControlsEl.hidden = true;
-    placenameToolsEl.hidden = false;
-    placenameBackToTodayBtn.hidden = !activePlacenameDate;
-    placenameCatchupPanel.hidden = true; // always close the picker when (re)entering
-    updateRotateHint();
-
-    placenameQuestions = activePlacenameDate
-      ? placenameQuestionsForDate(activePlacenameDate)
-      : todaysPlacenames();
-    placenameQuestionIndex = 0;
-    placenameAvailableTiers = PLACENAME_CIRCLE_TIERS.map((_, i) => i);
-    placenameResults = [];
-
-    drawPlacenameBackground();
-    updateBestScoreDisplay(loadRecords(PLACENAME_RECORDS_KEY), "🏆 地名挑戰最高");
-    startPlacenameQuestion();
-
-    if (!hasSeenPlacenameTutorial()) showPlacenameTutorial();
-  }
-
-  function showPlacenameTutorial() {
-    placenameTutorialOverlay.hidden = false;
-  }
-
-  placenameHelpBtn.addEventListener("click", showPlacenameTutorial);
-  placenameTutorialCloseBtn.addEventListener("click", () => {
-    placenameTutorialOverlay.hidden = true;
-    markPlacenameTutorialSeen();
-  });
-
-  // ---- Catch-up: replay a past day's placename challenge -----------------
-  // Same idea as the draw challenge's catch-up list (renderCatchupList()
-  // above): rebuilt fresh each time it's opened, one row per past day
-  // showing that day's 5 names and whether it's already been played.
-  // The archive should look like what it actually is -- a mode that just
-  // launched -- rather than immediately claiming a full month of history
-  // that never happened. It starts at ~1 week (as of the date below) and
-  // grows by a day every day after that, capping at the draw challenge's
-  // same 30-day window once it's actually accumulated that much.
-  const PLACENAME_CATCHUP_LAUNCH_DATE = "2026-08-20";
-  const PLACENAME_CATCHUP_MAX_WINDOW_DAYS = 30;
-
-  function placenameCatchupDateStrings() {
-    const todayIdx = dateStringToDayIndex(getTaipeiDateString());
-    const launchIdx = dateStringToDayIndex(PLACENAME_CATCHUP_LAUNCH_DATE);
-    const daysSinceLaunch = todayIdx - launchIdx;
-    const windowSize = Math.max(0, Math.min(daysSinceLaunch, PLACENAME_CATCHUP_MAX_WINDOW_DAYS));
-    return pastDateStrings(windowSize); // most recent (yesterday) first
-  }
-
-  function renderPlacenameCatchupList() {
-    const history = loadHistory(PLACENAME_HISTORY_KEY);
-    placenameCatchupListEl.innerHTML = "";
-    const dates = placenameCatchupDateStrings(); // most recent first
-    const windowSize = dates.length;
-    dates.forEach((dateStr, i) => {
-      const entry = history[dateStr];
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "catchup-item" + (entry ? " done" : "");
-      const statusText = entry ? `✅ ${entry.score}% (${entry.grade})` : "尚未挑戰";
-      // Numbered oldest -> newest regardless of the list's own (newest
-      // first) display order -- dates[i] is (i+1) days ago, so the oldest
-      // entry (i = windowSize-1) gets 001 and the newest (i = 0) gets
-      // the highest number.
-      const label = String(windowSize - i).padStart(3, "0");
-      item.innerHTML =
-        `<span class="catchup-date">${formatDisplayDate(dateStr)}</span>` +
-        `<span class="catchup-summary">第 ${label} 組</span>` +
-        `<span class="catchup-status">${statusText}</span>`;
-      item.addEventListener("click", () => {
-        activePlacenameDate = dateStr;
-        enterPlacenameMode();
-      });
-      placenameCatchupListEl.appendChild(item);
-    });
-  }
-
-  placenameCatchupBtn.addEventListener("click", () => {
-    if (placenameCatchupPanel.hidden) renderPlacenameCatchupList();
-    placenameCatchupPanel.hidden = !placenameCatchupPanel.hidden;
-  });
-  placenameCatchupCloseBtn.addEventListener("click", () => {
-    placenameCatchupPanel.hidden = true;
-  });
-  placenameBackToTodayBtn.addEventListener("click", () => {
-    activePlacenameDate = null;
-    enterPlacenameMode();
-  });
-
-  function startPlacenameQuestion() {
-    const q = placenameQuestions[placenameQuestionIndex];
-    const dayLabel = activePlacenameDate ? `補玩 ${formatDisplayDate(activePlacenameDate)}・` : "";
-    placenameQuestionEl.textContent =
-      `📍 ${dayLabel}第 ${placenameQuestionIndex + 1} 題／${placenameQuestions.length}：${q.name}`;
-    placenameSelectedTierIndex = null;
-    placenameCirclePx = null;
-    placenameAnswered = false;
-    placenameFeedbackEl.textContent = "";
-    confirmPlacenameBtn.hidden = true;
-    nextPlacenameBtn.hidden = true;
-    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    renderTierButtons();
-  }
-
-  function renderTierButtons() {
-    placenameTierPickerEl.innerHTML = "";
-    PLACENAME_CIRCLE_TIERS.forEach((tier, i) => {
-      const used = !placenameAvailableTiers.includes(i);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className =
-        "tier-btn" + (placenameSelectedTierIndex === i ? " selected" : "") + (used ? " used" : "");
-      btn.textContent = `${tier.label}（${tier.points}分）`;
-      btn.disabled = used || placenameAnswered;
-      btn.addEventListener("click", () => {
-        placenameSelectedTierIndex = i;
-        renderTierButtons();
-        redrawPlacenamePreview();
-      });
-      placenameTierPickerEl.appendChild(btn);
-    });
-  }
-
-  function redrawPlacenamePreview() {
-    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    if (placenameCirclePx === null || placenameSelectedTierIndex === null) return;
-    const tier = PLACENAME_CIRCLE_TIERS[placenameSelectedTierIndex];
-    const radiusPx = tier.radiusKm / KM_PER_PX;
-    drawCtx.beginPath();
-    drawCtx.arc(placenameCirclePx.x, placenameCirclePx.y, radiusPx, 0, Math.PI * 2);
-    drawCtx.fillStyle = "rgba(255, 183, 3, 0.35)";
-    drawCtx.fill();
-    drawCtx.strokeStyle = "#ffb703";
-    drawCtx.lineWidth = 2;
-    drawCtx.stroke();
-  }
-
-  function handlePlacenameClick(evt) {
-    if (placenameAnswered || placenameSelectedTierIndex === null) return;
-    placenameCirclePx = canvasPointFromEvent(evt);
-    redrawPlacenamePreview();
-    confirmPlacenameBtn.hidden = false;
-  }
-
-  confirmPlacenameBtn.addEventListener("click", () => {
-    if (placenameCirclePx === null || placenameSelectedTierIndex === null || placenameAnswered) return;
-    const tier = PLACENAME_CIRCLE_TIERS[placenameSelectedTierIndex];
-    const target = placenameQuestions[placenameQuestionIndex];
-    // Inverse of toCanvas() -- this mode never rotates the projection, so
-    // there's no rotation to undo here, just the origin offset + scale.
-    const kmX = (placenameCirclePx.x - originPxX) * KM_PER_PX;
-    const kmY = (placenameCirclePx.y - originPxY) * KM_PER_PX;
-    const targetKm = projectKm(target.lon, target.lat);
-    const distanceKm = Math.hypot(kmX - targetKm.x, kmY - targetKm.y);
-    const correct = distanceKm <= tier.radiusKm;
-
-    placenameResults.push({
-      name: target.name,
-      lon: target.lon,
-      lat: target.lat,
-      tierIndex: placenameSelectedTierIndex,
-      correct,
-      distanceKm,
-    });
-    placenameAvailableTiers = placenameAvailableTiers.filter((i) => i !== placenameSelectedTierIndex);
-    placenameAnswered = true;
-
-    const radiusPx = tier.radiusKm / KM_PER_PX;
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    resultCtx.beginPath();
-    resultCtx.arc(placenameCirclePx.x, placenameCirclePx.y, radiusPx, 0, Math.PI * 2);
-    resultCtx.fillStyle = correct ? "rgba(46, 204, 113, 0.3)" : "rgba(255, 82, 82, 0.3)";
-    resultCtx.fill();
-    resultCtx.strokeStyle = correct ? "#2ecc71" : "#ff5252";
-    resultCtx.lineWidth = 2.5;
-    resultCtx.stroke();
-    // mark the actual location so a miss is easy to learn from
-    const targetPx = toCanvas(target.lon, target.lat);
-    resultCtx.beginPath();
-    resultCtx.arc(targetPx.x, targetPx.y, 5, 0, Math.PI * 2);
-    resultCtx.fillStyle = "#ffffff";
-    resultCtx.fill();
-    resultCtx.strokeStyle = "#000000";
-    resultCtx.lineWidth = 1.5;
-    resultCtx.stroke();
-
-    drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    placenameFeedbackEl.textContent = correct
-      ? `✅ 涵蓋成功！`
-      : `❌ 沒涵蓋到，差了約 ${Math.round(distanceKm)} 公里`;
-    confirmPlacenameBtn.hidden = true;
-    renderTierButtons();
-
-    if (placenameQuestionIndex < placenameQuestions.length - 1) {
-      nextPlacenameBtn.hidden = false;
-    } else {
-      finishPlacenameChallenge();
-    }
-  });
-
-  nextPlacenameBtn.addEventListener("click", () => {
-    placenameQuestionIndex++;
-    startPlacenameQuestion();
-  });
-
-  function renderPlacenameResults(totalPoints, pct, grade, message, isNewBest) {
-    placenameScoreGradeEl.textContent = grade;
-    placenameScoreNumberEl.textContent = `${totalPoints} / ${PLACENAME_MAX_SCORE} 分（${pct}%）`;
-    placenameScoreMessageEl.textContent =
-      (isNewBest ? "🎉 新紀錄！ " : "") + message;
-
-    placenameBreakdownEl.innerHTML = "";
-    placenameResults.forEach((r, i) => {
-      const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
-      const div = document.createElement("div");
-      div.className = "analysis-line";
-      div.textContent = r.correct
-        ? `${i + 1}. ${r.name} — ✅ 用了「${tier.label}」，${tier.points} 分`
-        : `${i + 1}. ${r.name} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
-      placenameBreakdownEl.appendChild(div);
-    });
-
-    placenameTierPickerEl.hidden = true;
-    placenameFeedbackEl.hidden = true;
-    placenameControlsEl.hidden = true;
-    placenameResultPanelEl.hidden = false;
-  }
-
-  function finishPlacenameChallenge() {
-    const { totalPoints, pct } = computePlacenameScore(placenameResults);
-    const [grade, message] = gradeFor(pct, PLACENAME_GRADE_MESSAGES);
-    const { records, isNewBest } = recordAttempt(PLACENAME_RECORDS_KEY, pct, grade);
-    updateBestScoreDisplay(records, "🏆 地名挑戰最高");
-    const targetDate = activePlacenameDate || getTaipeiDateString();
-    recordHistoryEntry(PLACENAME_HISTORY_KEY, targetDate, pct, grade);
-    renderPlacenameResults(totalPoints, pct, grade, message, isNewBest);
-  }
-
-  placenameRetryBtn.addEventListener("click", () => {
-    enterPlacenameMode();
-  });
-
-  // Draws every question from this round at its real location at once
-  // (unlike the reveal during play, which only ever shows one at a time),
-  // colored by whether that answer was correct -- lets the player see the
-  // whole round's geography together after the fact.
-  function drawPlacenameReview() {
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    for (const r of placenameResults) {
-      const px = toCanvas(r.lon, r.lat);
-      const color = r.correct ? "#2ecc71" : "#ff5252";
-      resultCtx.beginPath();
-      resultCtx.arc(px.x, px.y, 6, 0, Math.PI * 2);
-      resultCtx.fillStyle = color;
-      resultCtx.fill();
-      resultCtx.lineWidth = 2;
-      resultCtx.strokeStyle = "#ffffff";
-      resultCtx.stroke();
-
-      // The dot alone carries the correct/wrong color; only wrong labels
-      // also turn red for extra emphasis -- red-vs-green text on a small
-      // pill is a rough call for red-green color blindness, so correct
-      // ones stay plain white rather than green-on-black.
-      const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
-      const labelColor = r.correct ? "#ffffff" : "#ff5252";
-      drawLabelPill(px.x, labelY, r.name, resultCtx, labelColor);
-    }
-  }
-
-  placenameReviewBtn.addEventListener("click", () => {
-    placenameResultPanelEl.hidden = true;
-    placenameReviewControlsEl.hidden = false;
-    drawPlacenameReview();
-  });
-  placenameReviewBackBtn.addEventListener("click", () => {
-    placenameReviewControlsEl.hidden = true;
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    placenameResultPanelEl.hidden = false;
-  });
-
-  undoBtn.addEventListener("click", () => {
-    if (finished) return;
-    strokes.pop();
-    redrawStrokes();
-  });
-
-  clearBtn.addEventListener("click", () => {
-    if (finished) return;
-    strokes = [];
-    redrawStrokes();
   });
 
   function rasterize(points) {
@@ -1718,62 +972,6 @@
     ],
   };
 
-  // Same shape as GRADE_MESSAGES but themed around pinpointing place names
-  // on a visible map (geography/precision) rather than freehand drawing
-  // accuracy -- used by the placename challenge instead.
-  const PLACENAME_GRADE_MESSAGES = {
-    S: [
-      "根本是台灣百科全書，指哪打哪！",
-      "地理小老師本人，一點都不誇張！",
-      "這精準度，內政部要來挖角了",
-      "台灣任何角落都逃不過你的手指",
-      "GPS 定位大概就長這樣吧！",
-      "地名一報你就秒懂位置，太狂了",
-    ],
-    A: [
-      "很厲害了！只差一兩題就滿分",
-      "地理實力有目共睹，再抓緊一點就完美",
-      "大部分地名都被你一眼看穿",
-      "台灣地圖在你心中已經有雛形了",
-      "選圈的策略也很聰明，可惜差臨門一腳",
-    ],
-    B: [
-      "抓到一些方向感，但還能更準",
-      "認得出大概位置，細節要再練練",
-      "半個台灣在你腦中，另一半好像跑丟了",
-      "有練過，但地圖冊還不能丟",
-      "圈選得不錯，位置感再加強一下",
-    ],
-    C: [
-      "方向感有點迷路，多看地圖會更好",
-      "抓錯地方的機率有點高喔",
-      "台灣地名跟你玩起躲貓貓了",
-      "感覺你比較熟悉的是另一個台灣",
-      "半數地名都跑到別的縣市去了",
-    ],
-    D: [
-      "這些地名對你來說還很陌生呢",
-      "地圖冊建議隨身攜帶",
-      "看來要重新認識一下台灣了",
-      "每一題都跟目標擦肩而過",
-      "先從縣市界線開始複習吧！",
-    ],
-  };
-
-  function pickRandom(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
-  function gradeFor(scorePct, messagePool) {
-    let grade;
-    if (scorePct >= 90) grade = "S";
-    else if (scorePct >= 75) grade = "A";
-    else if (scorePct >= 55) grade = "B";
-    else if (scorePct >= 35) grade = "C";
-    else grade = "D";
-    return [grade, pickRandom((messagePool || GRADE_MESSAGES)[grade])];
-  }
-
   function setBar(barEl, valueEl, pct) {
     barEl.style.width = `${pct}%`;
     valueEl.textContent = `${pct}%`;
@@ -1966,7 +1164,7 @@
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     const scores = computeScores(points);
-    const [grade, message] = gradeFor(scores.overall);
+    const [grade, message] = gradeFor(scores.overall, GRADE_MESSAGES);
     const recordsKey = challengeMode ? CHALLENGE_RECORDS_KEY : RECORDS_KEY;
     const { records, isNewBest } = recordAttempt(recordsKey, scores.overall, grade);
     updateBestScoreDisplay(records, challengeMode ? "🏆 每日挑戰最高" : "🏆 最高紀錄");
