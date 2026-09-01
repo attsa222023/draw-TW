@@ -977,25 +977,8 @@
     valueEl.textContent = `${pct}%`;
   }
 
-  // Draws `text` centered at `centerX`, wrapping character-by-character
-  // (fine for CJK, which has no word-boundary spaces) to fit `maxWidth`.
-  // Returns the total height consumed so callers can advance their cursor.
-  function wrapText(ctx, text, centerX, startY, maxWidth, lineHeight) {
-    let line = "";
-    const lines = [];
-    for (const ch of text) {
-      const test = line + ch;
-      if (line !== "" && ctx.measureText(test).width > maxWidth) {
-        lines.push(line);
-        line = ch;
-      } else {
-        line = test;
-      }
-    }
-    if (line) lines.push(line);
-    lines.forEach((l, i) => ctx.fillText(l, centerX, startY + i * lineHeight));
-    return lines.length * lineHeight;
-  }
+  // wrapText/triggerFileDownload/shareOrDownloadCard now live in
+  // ../shared.js (also used by the placename challenge's own score card).
 
   // Composites a shareable "score card" PNG: title, grade/score/message,
   // the map (ocean + diff overlay, straight from the game canvases), the
@@ -1072,49 +1055,16 @@
     return finalCard;
   }
 
-  function triggerFileDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  // On phones, a plain <a download> saves to the Files/Downloads app, not
-  // Photos -- and there's no direct way to hand it to another app. Where
-  // the Web Share API supports sharing files (iOS Safari, Android Chrome),
-  // use the native share sheet instead, so "save to Photos" / "send via
-  // LINE" etc. are one tap away. Falls back to a normal download wherever
-  // file sharing isn't available (most desktop browsers).
+  // Builds the card image and hands it to ../shared.js's shareOrDownloadCard
+  // (native share sheet where file sharing is supported, plain download
+  // otherwise).
   function shareOrDownloadScoreCard(scores, grade, message) {
     const card = buildScoreCard(scores, grade, message);
     const filename = `draw-taiwan-${scores.overall}pct.png`;
-
-    card.toBlob((blob) => {
-      if (!blob) return;
-
-      const file = new File([blob], filename, { type: "image/png" });
-      const canShareFile =
-        typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
-
-      if (canShareFile) {
-        const shareText = challengeMode
-          ? `我在「每日挑戰」畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`
-          : `我畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`;
-        navigator
-          .share({ files: [file], title: "畫出台灣", text: shareText })
-          .catch((err) => {
-            if (err && err.name === "AbortError") return; // player cancelled the share sheet
-            triggerFileDownload(blob, filename); // share failed for some other reason -- fall back
-          });
-        return;
-      }
-
-      triggerFileDownload(blob, filename);
-    }, "image/png");
+    const shareText = challengeMode
+      ? `我在「每日挑戰」畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`
+      : `我畫台灣拿到 ${scores.overall}% 準確度，你要不要也來試試？`;
+    shareOrDownloadCard(card, filename, "畫出台灣", shareText);
   }
 
   function renderResult(playerPoints, scores, grade, message, isNewBest) {

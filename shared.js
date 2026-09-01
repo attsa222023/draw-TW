@@ -175,6 +175,67 @@ function paintOceanBase(ctx, w, h) {
   }
 }
 
+// Draws `text` centered at `centerX`, wrapping character-by-character
+// (fine for CJK, which has no word-boundary spaces) to fit `maxWidth`.
+// Returns the total height consumed so callers can advance their cursor.
+// Used by both pages' buildScoreCard() to lay out the shareable PNG.
+function wrapText(ctx, text, centerX, startY, maxWidth, lineHeight) {
+  let line = "";
+  const lines = [];
+  for (const ch of text) {
+    const test = line + ch;
+    if (line !== "" && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  lines.forEach((l, i) => ctx.fillText(l, centerX, startY + i * lineHeight));
+  return lines.length * lineHeight;
+}
+
+function triggerFileDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// On phones, a plain <a download> saves to the Files/Downloads app, not
+// Photos -- and there's no direct way to hand it to another app. Where the
+// Web Share API supports sharing files (iOS Safari, Android Chrome), use
+// the native share sheet instead, so "save to Photos" / "send via LINE"
+// etc. are one tap away. Falls back to a normal download wherever file
+// sharing isn't available (most desktop browsers). `card` is a <canvas>;
+// `title`/`text` are only used for the share sheet. Each page builds its
+// own card image (different content) and just hands it to this to send.
+function shareOrDownloadCard(card, filename, title, text) {
+  card.toBlob((blob) => {
+    if (!blob) return;
+
+    const file = new File([blob], filename, { type: "image/png" });
+    const canShareFile = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+
+    if (canShareFile) {
+      navigator
+        .share({ files: [file], title, text })
+        .catch((err) => {
+          if (err && err.name === "AbortError") return; // player cancelled the share sheet
+          triggerFileDownload(blob, filename); // share failed for some other reason -- fall back
+        });
+      return;
+    }
+
+    triggerFileDownload(blob, filename);
+  }, "image/png");
+}
+
 // ---- Shared grading ---------------------------------------------------------
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];

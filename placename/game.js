@@ -230,6 +230,10 @@
   // per-question tracking (score/grade only) and `results` above was
   // reconstructed from questionsForDate() rather than loaded from storage.
   let isLegacyArchive = false;
+  // {totalPoints, pct, grade} for whatever's currently on the score panel
+  // (a just-finished round or an archived one) -- set by renderResults(),
+  // read by the share-card button so it works from either path.
+  let lastCardScore = null;
 
   // County borders (thin lines) + name labels, drawn over the filled
   // island when the difficulty toggle is on.
@@ -304,6 +308,11 @@
   const scoreNumberEl = document.getElementById("score-number");
   const scoreMessageEl = document.getElementById("score-message");
   const breakdownEl = document.getElementById("breakdown");
+  const shareCardBtn = document.getElementById("download-card-btn");
+  const supportsFileShare = typeof navigator.share === "function" && typeof navigator.canShare === "function";
+  if (supportsFileShare) {
+    shareCardBtn.textContent = "分享成績卡片";
+  }
   const reviewBtn = document.getElementById("review-btn");
   const reviewControlsEl = document.getElementById("review-controls");
   const reviewLegendEl = document.getElementById("review-legend");
@@ -655,6 +664,7 @@
   });
 
   function renderResults(totalPoints, pct, grade, message, isNewBest) {
+    lastCardScore = { totalPoints, pct, grade };
     scoreGradeEl.textContent = grade;
     scoreNumberEl.textContent = `${totalPoints} / ${MAX_SCORE} 分（${pct}%）`;
     scoreMessageEl.textContent =
@@ -753,18 +763,22 @@
   // for a reconstructed legacy entry (see showArchivedResult()) -- the
   // place is known but the outcome isn't, so those get a neutral amber
   // marker instead of a red/green verdict that would be a guess.
-  function drawReview() {
-    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  //
+  // Takes `ctx` rather than always drawing on resultCtx so buildScoreCard()
+  // can reuse it to draw the same markers onto its own share-card canvas
+  // (translated to sit under the card's map image) without disturbing
+  // whatever's currently shown on screen.
+  function drawReviewMarkers(ctx) {
     for (const r of results) {
       const px = toCanvas(r.lon, r.lat);
       const color = r.correct === null ? "#ffb703" : r.correct ? "#2ecc71" : "#ff5252";
-      resultCtx.beginPath();
-      resultCtx.arc(px.x, px.y, 6, 0, Math.PI * 2);
-      resultCtx.fillStyle = color;
-      resultCtx.fill();
-      resultCtx.lineWidth = 2;
-      resultCtx.strokeStyle = "#ffffff";
-      resultCtx.stroke();
+      ctx.beginPath();
+      ctx.arc(px.x, px.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
 
       // The dot alone carries the correct/wrong color; only wrong labels
       // also turn red for extra emphasis -- red-vs-green text on a small
@@ -773,8 +787,13 @@
       // green-on-black.
       const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
       const labelColor = r.correct === false ? "#ff5252" : "#ffffff";
-      drawLabelPill(px.x, labelY, r.name, resultCtx, labelColor);
+      drawLabelPill(px.x, labelY, r.name, ctx, labelColor);
     }
+  }
+
+  function drawReview() {
+    resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    drawReviewMarkers(resultCtx);
   }
 
   function updateReviewLegend() {
@@ -798,6 +817,89 @@
     if (viewingArchivedResult) drawReview();
     else resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultPanelEl.hidden = false;
+  });
+
+  // Composites a shareable "score card" PNG: title, grade/score/message,
+  // the map with review markers, and the per-question breakdown -- reads
+  // whatever's currently on the score panel (results/scoreMessageEl/
+  // breakdownEl), so it works identically for a just-finished round or an
+  // archived one (including a reconstructed legacy entry's neutral markers
+  // and name-only breakdown lines -- see showArchivedResult()).
+  function buildScoreCard(totalPoints, pct, grade) {
+    const margin = 28;
+    const cardW = CANVAS_W + margin * 2;
+    const contentW = cardW - margin * 2;
+    const scratchH = CANVAS_H + 600;
+
+    const scratch = document.createElement("canvas");
+    scratch.width = cardW;
+    scratch.height = scratchH;
+    const ctx = scratch.getContext("2d");
+
+    const grad = ctx.createLinearGradient(0, 0, 0, scratchH);
+    grad.addColorStop(0, "#0b3d5c");
+    grad.addColorStop(1, "#06263b");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cardW, scratchH);
+
+    ctx.textAlign = "center";
+    let y = margin;
+
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "bold 18px sans-serif";
+    const titleLabel = activeDate ? `📍 每日台灣地名挑戰・補玩 ${formatDisplayDate(activeDate)}` : "📍 每日台灣地名挑戰";
+    ctx.fillText(titleLabel, cardW / 2, y + 18);
+    y += 34;
+
+    ctx.fillStyle = "#ffb703";
+    ctx.font = "800 60px sans-serif";
+    ctx.fillText(grade, cardW / 2, y + 50);
+    y += 68;
+
+    ctx.fillStyle = "#eaf6ff";
+    ctx.font = "bold 24px sans-serif";
+    ctx.fillText(`${totalPoints} / ${MAX_SCORE} 分（${pct}%）`, cardW / 2, y + 20);
+    y += 34;
+
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "15px sans-serif";
+    y += wrapText(ctx, scoreMessageEl.textContent, cardW / 2, y + 16, contentW - 20, 20);
+    y += 16;
+
+    ctx.drawImage(bgCanvas, margin, y, CANVAS_W, CANVAS_H);
+    ctx.save();
+    ctx.translate(margin, y);
+    drawReviewMarkers(ctx); // toCanvas() coords are relative to the map's own origin, not the card's
+    ctx.restore();
+    y += CANVAS_H + 20;
+
+    ctx.fillStyle = "rgba(234,246,255,0.85)";
+    ctx.font = "13px sans-serif";
+    for (const line of [...breakdownEl.children].map((el) => el.textContent)) {
+      y += wrapText(ctx, line, cardW / 2, y + 14, contentW - 20, 18);
+      y += 4;
+    }
+    y += 12;
+
+    ctx.fillStyle = "rgba(234,246,255,0.55)";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("attsa222023.github.io/draw-TW/placename", cardW / 2, y + 12);
+    y += 30;
+
+    const finalCard = document.createElement("canvas");
+    finalCard.width = cardW;
+    finalCard.height = Math.ceil(y);
+    finalCard.getContext("2d").drawImage(scratch, 0, 0);
+    return finalCard;
+  }
+
+  shareCardBtn.addEventListener("click", () => {
+    if (!lastCardScore) return;
+    const { totalPoints, pct, grade } = lastCardScore;
+    const card = buildScoreCard(totalPoints, pct, grade);
+    const filename = `placename-taiwan-${pct}pct.png`;
+    const shareText = `我在「每日台灣地名挑戰」拿到 ${pct}% (${grade})，你要不要也來試試？`;
+    shareOrDownloadCard(card, filename, "每日台灣地名挑戰", shareText);
   });
 
   enterMode();
