@@ -969,6 +969,45 @@
     renderResults(totalPoints, pct, grade, message, isNewBest);
   }
 
+  // Nudges apart any two label boxes (centered at .x/.y, sized .w/.h) that
+  // overlap -- a simple iterative pairwise separation, pushing each
+  // colliding pair apart along whichever axis needs the smaller push.
+  // With at most 10 points a round, this settles in well under the
+  // iteration cap. Mutates `labels` in place.
+  function resolveLabelCollisions(labels) {
+    const padding = 3;
+    for (let iter = 0; iter < 60; iter++) {
+      let moved = false;
+      for (let i = 0; i < labels.length; i++) {
+        for (let j = i + 1; j < labels.length; j++) {
+          const a = labels[i];
+          const b = labels[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const overlapX = (a.w + b.w) / 2 + padding - Math.abs(dx);
+          const overlapY = (a.h + b.h) / 2 + padding - Math.abs(dy);
+          if (overlapX <= 0 || overlapY <= 0) continue;
+          moved = true;
+          if (overlapX < overlapY) {
+            const push = (overlapX / 2) * (dx >= 0 ? 1 : -1);
+            a.x += push;
+            b.x -= push;
+          } else {
+            const push = (overlapY / 2) * (dy >= 0 ? 1 : -1);
+            a.y += push;
+            b.y -= push;
+          }
+        }
+      }
+      if (!moved) break;
+    }
+    // Keep every label on-canvas even after being pushed around.
+    for (const l of labels) {
+      l.x = Math.min(Math.max(l.x, l.w / 2 + 2), CANVAS_W - l.w / 2 - 2);
+      l.y = Math.min(Math.max(l.y, l.h / 2 + 2), CANVAS_H - l.h / 2 - 2);
+    }
+  }
+
   // Draws every question from this round at its real location at once
   // (unlike the reveal during play, which only ever shows one at a time),
   // colored by whether that answer was correct -- lets the player see the
@@ -982,8 +1021,33 @@
   // (translated to sit under the card's map image) without disturbing
   // whatever's currently shown on screen.
   function drawReviewMarkers(ctx) {
-    for (const r of results) {
+    // Two passes: first work out where every label WANTS to sit (right by
+    // its own dot) and where two adjacent ones actually collide, then
+    // spread apart any that overlap. Dots draw first so every label -- even
+    // a nudged one -- ends up on top of them, not the other way around.
+    ctx.font = "bold 13px sans-serif"; // must match drawLabelPill()'s font for accurate width measurement
+    const labels = results.map((r) => {
       const px = toCanvas(r.lon, r.lat);
+      // Special mode entries carry a `question` (the riddle) alongside
+      // `name` (the answer) -- reviewShowAnswer picks which one labels the
+      // map. Daily entries have no `question`, so they always show name.
+      const text = reviewShowAnswer || !r.question ? r.name : r.question;
+      const naturalY = px.y < 40 ? px.y + 22 : px.y - 16;
+      return {
+        r,
+        px,
+        text,
+        w: ctx.measureText(text).width + 16,
+        h: 22,
+        x: px.x,
+        y: naturalY,
+        naturalX: px.x,
+        naturalY,
+      };
+    });
+    resolveLabelCollisions(labels);
+
+    for (const { r, px } of labels) {
       const color = r.correct === null ? "#ffb703" : r.correct ? "#2ecc71" : "#ff5252";
       ctx.beginPath();
       ctx.arc(px.x, px.y, 6, 0, Math.PI * 2);
@@ -992,19 +1056,27 @@
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#ffffff";
       ctx.stroke();
+    }
 
+    for (const { r, px, x, y, naturalX, naturalY, text } of labels) {
+      // If collision-avoidance nudged this label away from its natural
+      // spot (compared to where it would sit with no other labels around),
+      // a thin leader line keeps it obviously tied to its own dot.
+      if (Math.hypot(x - naturalX, y - naturalY) > 4) {
+        ctx.beginPath();
+        ctx.moveTo(px.x, px.y);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
       // The dot alone carries the correct/wrong color; only wrong labels
       // also turn red for extra emphasis -- red-vs-green text on a small
       // pill is a rough call for red-green color blindness, so correct
       // (and unknown-outcome) ones stay plain white rather than
       // green-on-black.
-      const labelY = px.y < 40 ? px.y + 22 : px.y - 16;
       const labelColor = r.correct === false ? "#ff5252" : "#ffffff";
-      // Special mode entries carry a `question` (the riddle) alongside
-      // `name` (the answer) -- reviewShowAnswer picks which one labels the
-      // map. Daily entries have no `question`, so they always show name.
-      const labelText = reviewShowAnswer || !r.question ? r.name : r.question;
-      drawLabelPill(px.x, labelY, labelText, ctx, labelColor);
+      drawLabelPill(x, y, text, ctx, labelColor);
     }
   }
 

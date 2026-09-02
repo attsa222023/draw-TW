@@ -1,0 +1,17 @@
+Auto-avoid overlapping labels on the review map
+
+drawReviewMarkers() always placed each label at a fixed offset from
+its own dot, so two nearby answers (common in the special-mode meme
+pool especially) could end up with overlapping name pills. Now does a
+two-pass layout: compute where every label naturally wants to sit,
+then run a small iterative pairwise-separation pass
+(resolveLabelCollisions()) that nudges any two overlapping label boxes
+apart along whichever axis needs the smaller push, clamped to stay
+on-canvas. A label nudged more than a few pixels off its natural spot
+gets a thin leader line back to its dot, so it's still obviously whose
+label is whose once several are jumbled together.
+
+Shared by both the on-screen review canvas and the share-card image
+(buildScoreCard() reuses the same function), so both get the fix.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
