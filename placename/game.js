@@ -752,10 +752,17 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "tier-btn" + (selectedTierIndex === i ? " selected" : "") + (used ? " used" : "");
-      // Only special mode's ×2 uses need a count badge -- daily mode (still
-      // 1 use each) looks exactly as it always has.
-      btn.textContent =
-        maxUsesPerTier > 1 ? `${tier.label}（${tier.points}分）×${usesLeft}` : `${tier.label}（${tier.points}分）`;
+      btn.textContent = `${tier.label}（${tier.points}分）`;
+      // Only special mode's ×2 uses need a remaining-count badge -- daily
+      // mode (still 1 use each) looks exactly as it always has. A small
+      // corner badge instead of appending "×N" to the label itself, so the
+      // label text stays identical between modes.
+      if (maxUsesPerTier > 1) {
+        const badge = document.createElement("span");
+        badge.className = "tier-count-badge";
+        badge.textContent = String(usesLeft);
+        btn.appendChild(badge);
+      }
       btn.disabled = used || answered;
       btn.addEventListener("click", () => {
         selectedTierIndex = i;

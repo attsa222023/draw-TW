@@ -120,6 +120,7 @@
 }
 
 .tier-btn {
+  position: relative; /* anchors .tier-count-badge (special mode's remaining-uses count) */
   padding: 8px 14px;
   border-radius: 8px;
   border: 2px solid var(--ocean-light);
@@ -128,6 +129,31 @@
   font-family: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+/* Special mode's "each size usable twice" -- a small corner badge instead
+   of stuffing "×N" into the button label, so the label stays identical to
+   daily mode's (which never has more than 1 use) rather than growing a
+   third clause. */
+.tier-count-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #2a1a00;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.tier-btn.used .tier-count-badge {
+  background: var(--ocean-light);
+  color: var(--ink);
 }
 
 .tier-btn:hover:not(:disabled) {
