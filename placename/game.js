@@ -351,6 +351,8 @@
   const modeDailyBtn = document.getElementById("mode-daily-btn");
   const modeSpecialBtn = document.getElementById("mode-special-btn");
   const hintBarEl = document.getElementById("hint-bar");
+  const progressBarEl = document.getElementById("progress-bar");
+  const progressBarTextEl = document.getElementById("progress-bar-text");
   const questionEl = document.getElementById("question");
   const tierPickerEl = document.getElementById("tier-picker");
   const feedbackEl = document.getElementById("feedback");
@@ -461,6 +463,7 @@
     tierPickerEl.hidden = false;
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
+    progressBarEl.hidden = false;
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -670,6 +673,7 @@
     tierPickerEl.hidden = true;
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
+    progressBarEl.hidden = true;
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
     catchupPanel.hidden = true;
@@ -703,6 +707,7 @@
     tierPickerEl.hidden = false;
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
+    progressBarEl.hidden = false;
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -727,6 +732,23 @@
   backToPoolListBtn.addEventListener("click", enterSpecialPicker);
   retrySpecialBtn.addEventListener("click", () => startSpecialRound(activeSpecialPoolId));
 
+  // Mirrors the same "N/M + score so far" info the question line already
+  // shows, but stays pinned to the viewport top once the header scrolls
+  // past it -- on a long page (map + tier-picker + controls all stack
+  // below the question) that's otherwise easy to lose sight of mid-round.
+  // Shown/hidden in lockstep with #tier-picker at every point that toggles
+  // it (see enterDailyMode(), enterSpecialPicker(), startSpecialRound(),
+  // renderResults()) -- i.e. only while actually answering, never on the
+  // pool picker or the result panel (which already shows the real score).
+  function updateProgressBar() {
+    const scoreSoFar = results.reduce(
+      (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
+      0
+    );
+    const icon = mode === "special" ? "🎯" : "📍";
+    progressBarTextEl.textContent = `${icon} 第 ${questionIndex + 1} 題／${questions.length}　目前 ${scoreSoFar} 分`;
+  }
+
   function startQuestion() {
     const q = questions[questionIndex];
     const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
@@ -742,6 +764,7 @@
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     renderTierButtons();
+    updateProgressBar();
   }
 
   function renderTierButtons() {
@@ -818,6 +841,7 @@
     });
     tierUsesLeft[selectedTierIndex]--;
     answered = true;
+    updateProgressBar(); // reflect this question's points immediately, not just on "next"
 
     const radiusPx = tier.radiusKm / KM_PER_PX;
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
@@ -895,6 +919,7 @@
     tierPickerEl.hidden = true;
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
+    progressBarEl.hidden = true;
     resultPanelEl.hidden = false;
     // Nothing to review when there isn't even a reconstructable place-name
     // list for this entry (shouldn't happen in practice -- questionsForDate()

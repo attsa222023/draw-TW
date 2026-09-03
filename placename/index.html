@@ -13,7 +13,7 @@
      with the root page's own assets isn't necessary -- this page's files
      are independent, just bump whichever ones actually changed. -->
 <link rel="stylesheet" href="../style.css?v=1">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <header>
@@ -28,6 +28,10 @@
   </header>
 
   <main>
+    <div id="progress-bar" hidden>
+      <span id="progress-bar-text"></span>
+    </div>
+
     <div id="hint-bar">
       <span id="question" class="hint"></span>
       <label id="county-toggle-label" class="hint toggle-hint">
@@ -115,6 +119,6 @@
   <script src="data.js?v=1"></script>
   <script src="special-data.js?v=2"></script>
   <script src="../records.js?v=3"></script>
-  <script src="game.js?v=12"></script>
+  <script src="game.js?v=13"></script>
 </body>
 </html>
