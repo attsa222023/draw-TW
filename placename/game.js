@@ -943,6 +943,19 @@
     ],
   };
 
+  // The result panel sits well below the fold (question/tools/map/tier-
+  // picker all stack above it), so without this the player who just
+  // answered the last question has no on-screen cue that they're actually
+  // done -- they'd have to notice and scroll down themselves. Wrapped in
+  // requestAnimationFrame so the layout pass from clearing `hidden` (inside
+  // renderResults(), called just before this) has already happened -- same
+  // pattern the draw game's own finishBtn handler uses for its result panel.
+  function scrollToResultPanel() {
+    requestAnimationFrame(() => {
+      resultPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function finishChallenge() {
     const { totalPoints, pct } = computeScore(results);
     const [grade, message] = gradeFor(pct, GRADE_MESSAGES);
@@ -955,6 +968,7 @@
     // challenge, there's no retry to fall back on.
     recordHistoryEntry(HISTORY_KEY, targetDate, pct, grade, { totalPoints, results });
     renderResults(totalPoints, pct, grade, message, isNewBest);
+    scrollToResultPanel();
   }
 
   // Special mode's counterpart to finishChallenge() -- no HISTORY_KEY/date
@@ -967,6 +981,7 @@
     const { records, isNewBest } = recordAttempt(specialRecordsKey(activeSpecialPoolId), pct, grade);
     updateBestScoreDisplay(records);
     renderResults(totalPoints, pct, grade, message, isNewBest);
+    scrollToResultPanel();
   }
 
   // Nudges apart any two label boxes (centered at .x/.y, sized .w/.h) that
