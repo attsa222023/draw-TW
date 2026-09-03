@@ -464,6 +464,7 @@
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
     progressBarEl.hidden = false;
+    questionEl.hidden = true; // the question now lives in #progress-bar while actually playing
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -674,6 +675,7 @@
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
     progressBarEl.hidden = true;
+    questionEl.hidden = true; // whole #hint-bar is hidden here too, but keep this in sync regardless
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
     catchupPanel.hidden = true;
@@ -708,6 +710,7 @@
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
     progressBarEl.hidden = false;
+    questionEl.hidden = true; // the question now lives in #progress-bar while actually playing
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -732,29 +735,32 @@
   backToPoolListBtn.addEventListener("click", enterSpecialPicker);
   retrySpecialBtn.addEventListener("click", () => startSpecialRound(activeSpecialPoolId));
 
-  // Mirrors the same "N/M + score so far" info the question line already
-  // shows, but stays pinned to the viewport top once the header scrolls
-  // past it -- on a long page (map + tier-picker + controls all stack
-  // below the question) that's otherwise easy to lose sight of mid-round.
+  // The question itself, plus "N/M + score so far", pinned to the
+  // viewport top once the header scrolls past it -- on a long page (map/
+  // tier-picker/controls all stack below) that's otherwise the only place
+  // to see either without scrolling back up. This is now the ONE place
+  // the current question is shown at all (the old #question label in
+  // #hint-bar is repurposed for the archived/read-only "已完成挑戰"
+  // status instead -- see showArchivedResult() -- and hidden the rest of
+  // the time; the two are always shown in lockstep-opposite states).
   // Shown/hidden in lockstep with #tier-picker at every point that toggles
   // it (see enterDailyMode(), enterSpecialPicker(), startSpecialRound(),
   // renderResults()) -- i.e. only while actually answering, never on the
   // pool picker or the result panel (which already shows the real score).
   function updateProgressBar() {
-    const scoreSoFar = results.reduce(
-      (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
-      0
-    );
-    const icon = mode === "special" ? "🎯" : "📍";
-    progressBarTextEl.textContent = `${icon} 第 ${questionIndex + 1} 題／${questions.length}　目前 ${scoreSoFar} 分`;
-  }
-
-  function startQuestion() {
     const q = questions[questionIndex];
     const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
     const icon = mode === "special" ? "🎯" : "📍";
     const prompt = q.question || q.name; // special-mode questions are a riddle; daily's IS the place name
-    questionEl.textContent = `${icon} ${dayLabel}第 ${questionIndex + 1} 題／${questions.length}：${prompt}`;
+    const scoreSoFar = results.reduce(
+      (sum, r) => sum + (r.correct ? PLACENAME_CIRCLE_TIERS[r.tierIndex].points : 0),
+      0
+    );
+    progressBarTextEl.textContent =
+      `${icon} ${dayLabel}第 ${questionIndex + 1} 題／${questions.length}：${prompt}` + `　目前 ${scoreSoFar} 分`;
+  }
+
+  function startQuestion() {
     selectedTierIndex = null;
     circlePx = null;
     answered = false;
@@ -920,6 +926,7 @@
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
     progressBarEl.hidden = true;
+    questionEl.hidden = false; // back to its archived-status role now that #progress-bar is hidden
     resultPanelEl.hidden = false;
     // Nothing to review when there isn't even a reconstructable place-name
     // list for this entry (shouldn't happen in practice -- questionsForDate()
@@ -988,6 +995,16 @@
     });
   }
 
+  // #question is only ever visible while #progress-bar is hidden (i.e. once
+  // a round's actually finished) -- gives it something to show for a fresh
+  // finish, same idea as showArchivedResult()'s "已完成挑戰" text for a
+  // past one, so it's never just sitting there empty.
+  function markQuestionDone() {
+    const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
+    const icon = mode === "special" ? "🎯" : "📍";
+    questionEl.textContent = `${icon} ${dayLabel}已完成挑戰`;
+  }
+
   function finishChallenge() {
     const { totalPoints, pct } = computeScore(results);
     const [grade, message] = gradeFor(pct, GRADE_MESSAGES);
@@ -999,6 +1016,7 @@
     // archive without needing to be played again -- this is a one-shot
     // challenge, there's no retry to fall back on.
     recordHistoryEntry(HISTORY_KEY, targetDate, pct, grade, { totalPoints, results });
+    markQuestionDone();
     renderResults(totalPoints, pct, grade, message, isNewBest);
     scrollToResultPanel();
   }
@@ -1012,6 +1030,7 @@
     const [grade, message] = gradeFor(pct, GRADE_MESSAGES);
     const { records, isNewBest } = recordAttempt(specialRecordsKey(activeSpecialPoolId), pct, grade);
     updateBestScoreDisplay(records);
+    markQuestionDone();
     renderResults(totalPoints, pct, grade, message, isNewBest);
     scrollToResultPanel();
   }
