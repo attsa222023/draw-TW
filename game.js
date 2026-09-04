@@ -678,11 +678,15 @@
     challengeToolsEl.hidden = !isChallenge;
     backToTodayBtn.hidden = !activeChallengeDate;
     catchupPanel.hidden = true; // always close the picker when (re)applying a mode
-    // no start-point hint to show on a day with zero point markers (both
-    // of today's pair are rivers/mountains) -- their overlay speaks for
-    // itself via challengeDescEl
-    startHintEl.hidden = markersToShow.length === 0;
-    if (markersToShow.length > 0) {
+    // Challenge mode already spells out today's markers in challengeDescEl
+    // above ("🗓️ 今日挑戰：起點「屏東市」、參考點「龜山島」") -- showing the
+    // same info again here (in the ・-joined "起點：屏東市・參考點：龜山島"
+    // format) was pure duplication, so this hint is normal-mode only now.
+    // (No start-point hint on a challenge day with zero point markers
+    // either way -- both of today's pair being rivers/mountains -- their
+    // overlay speaks for itself via challengeDescEl.)
+    startHintEl.hidden = isChallenge || markersToShow.length === 0;
+    if (!startHintEl.hidden) {
       startHintEl.textContent = "📍 " + markersToShow.map((m) => `${m.style}：${m.label}`).join("・");
     }
     updateRotateHint();
