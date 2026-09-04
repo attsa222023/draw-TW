@@ -145,6 +145,26 @@
   const drawCtx = drawCanvas.getContext("2d");
   const resultCtx = resultCanvas.getContext("2d");
 
+  // Keeps --canvas-h-budget (read by style.css's mobile #canvas-wrap width
+  // formula) equal to the actual room available below the header/hint-bar
+  // and above #action-dock's fixed bottom bar -- measured directly rather
+  // than guessed, since both the header stack's height and the dock's
+  // height (tier buttons wrapping to one vs. two rows, confirm/next shown
+  // or not) vary. #canvas-wrap's own top offset is unaffected by either
+  // (nothing above it depends on its own size), so a fresh measurement
+  // each time is enough -- no iteration needed. Recomputed on a
+  // ResizeObserver (covers the dock's height changing) and on window
+  // resize (covers viewport size / rotation changing); ResizeObserver
+  // also delivers an initial call once layout settles, so nothing extra
+  // is needed to set the very first value.
+  const actionDockEl = document.getElementById("action-dock");
+  function updateCanvasHeightBudget() {
+    const budget = window.innerHeight - wrap.getBoundingClientRect().top - actionDockEl.getBoundingClientRect().height;
+    wrap.style.setProperty("--canvas-h-budget", `${Math.max(budget, 120)}px`);
+  }
+  new ResizeObserver(updateCanvasHeightBudget).observe(actionDockEl);
+  window.addEventListener("resize", updateCanvasHeightBudget);
+
   // Mutable projection state, set by configureProjection() -- this mode
   // never rotates (currentRotationDeg always 0), but toCanvas() still
   // needs it since it shares the same math as the draw modes.
@@ -771,6 +791,11 @@
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     renderTierButtons();
     updateProgressBar();
+    // Explicit alongside the ResizeObserver set up above -- confirm/next
+    // just went from possibly-shown back to both hidden, which changes
+    // #action-dock's height, and a background/inactive tab can't be
+    // relied on to deliver that observer's callback promptly.
+    updateCanvasHeightBudget();
   }
 
   function renderTierButtons() {
@@ -821,6 +846,7 @@
     circlePx = canvasPointFromEvent(evt);
     redrawPreview();
     confirmBtn.hidden = false;
+    updateCanvasHeightBudget(); // #action-dock just grew by one button -- see startQuestion()'s call for why this isn't left to the ResizeObserver alone
   });
 
   confirmBtn.addEventListener("click", () => {
@@ -881,10 +907,11 @@
 
     if (questionIndex < questions.length - 1) {
       nextBtn.hidden = false;
+      updateCanvasHeightBudget(); // #action-dock's #controls button swapped confirm -> next
     } else if (mode === "daily") {
-      finishChallenge();
+      finishChallenge(); // hides #action-dock entirely -- renderResults() inside it calls updateCanvasHeightBudget() itself
     } else {
-      finishSpecialRound();
+      finishSpecialRound(); // same as above
     }
   });
 
@@ -928,6 +955,9 @@
     progressBarEl.hidden = true;
     questionEl.hidden = false; // back to its archived-status role now that #progress-bar is hidden
     resultPanelEl.hidden = false;
+    // #action-dock just collapsed to nothing (style.css hides it once
+    // #tier-picker[hidden]) -- let the map immediately reclaim that space.
+    updateCanvasHeightBudget();
     // Nothing to review when there isn't even a reconstructable place-name
     // list for this entry (shouldn't happen in practice -- questionsForDate()
     // always returns 5 -- but stays as a safety net).
@@ -1288,4 +1318,10 @@
   });
 
   enterDailyMode();
+  // Belt-and-suspenders alongside the ResizeObserver above: sets the very
+  // first --canvas-h-budget value right away instead of waiting on that
+  // observer's own initial notification (which, being tied to the
+  // rendering pipeline, isn't guaranteed to land before the first paint
+  // a player actually sees).
+  updateCanvasHeightBudget();
 })();

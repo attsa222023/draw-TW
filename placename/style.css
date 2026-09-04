@@ -316,3 +316,67 @@
   font-size: 0.75rem;
   opacity: 0.7;
 }
+
+/* Compact mobile layout: mirrors ../style.css's own #controls fixed-
+   bottom treatment (see its "Compact mobile layout" comment) -- but here
+   #tier-picker (circle-size buttons) and #feedback go along for the
+   ride too, wrapped together in #action-dock, since picking a tier is
+   the very first step of each question and #feedback shows the result
+   right after answering; leaving either in normal flow would mean
+   scrolling back up to them while confirm/next already floated. A plain
+   flex column handles the stacking automatically -- no need to hand-
+   compute each bar's height like a manually offset `bottom` would. */
+@media (max-width: 640px) {
+  #action-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(6, 38, 59, 0.95);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Hides the whole dock once there's nothing left in it to show (round
+     finished, or a different screen entirely, e.g. the pool picker) --
+     #tier-picker and #controls always toggle hidden together (see
+     game.js), so checking one is enough. */
+  #action-dock:has(> #tier-picker[hidden]) {
+    display: none;
+  }
+
+  /* ../style.css's own mobile #canvas-wrap formula assumes a fixed
+     "header + hint-bar" height above the map (its "-190px") and knows
+     nothing about #action-dock now floating over the map's own bottom
+     edge either -- both assumptions drift here (this page's own longer
+     subtitle/mode-toggle/best-score-line stack, plus the dock's variable
+     height), so this page overrides it with an exact JS-measured budget
+     instead of another guessed constant: --canvas-h-budget is "viewport
+     height minus #canvas-wrap's own top offset minus #action-dock's real
+     height", kept in sync by game.js. 400px is only the pre-JS fallback. */
+  #canvas-wrap {
+    width: min(100%, calc(var(--canvas-h-budget, 400px) * var(--map-ratio, 0.6)));
+  }
+
+  #action-dock #tier-picker,
+  #action-dock #feedback {
+    margin: 0;
+  }
+
+  /* Neutralizes ../style.css's own fixed-bottom #controls override --
+     #action-dock is already the fixed bar now, so #controls just needs
+     to be a plain row inside it (higher specificity than that shared
+     single-#id rule, so this wins regardless of load order). */
+  #action-dock #controls {
+    position: static;
+    margin: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+}

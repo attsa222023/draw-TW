@@ -13,7 +13,7 @@
      with the root page's own assets isn't necessary -- this page's files
      are independent, just bump whichever ones actually changed. -->
 <link rel="stylesheet" href="../style.css?v=1">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <header>
@@ -87,12 +87,14 @@
       <canvas id="result-canvas"></canvas>
     </div>
 
-    <div id="tier-picker"></div>
-    <p id="feedback" class="subtitle"></p>
+    <div id="action-dock">
+      <div id="tier-picker"></div>
+      <p id="feedback" class="subtitle"></p>
 
-    <div id="controls">
-      <button id="confirm-btn" type="button" hidden>確認位置</button>
-      <button id="next-btn" type="button" hidden>下一題</button>
+      <div id="controls">
+        <button id="confirm-btn" type="button" hidden>確認位置</button>
+        <button id="next-btn" type="button" hidden>下一題</button>
+      </div>
     </div>
 
     <div id="result-panel" hidden>
@@ -119,6 +121,6 @@
   <script src="data.js?v=1"></script>
   <script src="special-data.js?v=2"></script>
   <script src="../records.js?v=3"></script>
-  <script src="game.js?v=14"></script>
+  <script src="game.js?v=15"></script>
 </body>
 </html>
