@@ -244,6 +244,7 @@
   margin-top: 10px;
   min-height: 1.2em;
   font-weight: 600;
+  text-align: center;
 }
 
 #confirm-btn {
@@ -404,14 +405,23 @@
   #canvas-wrap {
     width: min(100%, calc(100vh * var(--map-ratio, 0.6)));
     width: min(100%, calc(100dvh * var(--map-ratio, 0.6)));
-    /* Extra bottom margin, on top of whatever height the map ends up
-       with above, so the page has enough scroll room for #progress-bar
-       to actually reach the top and stick there -- needs to be at least
-       #progress-bar's own natural distance from the top of the page,
-       i.e. roughly --above-h (real height of everything stacked above
-       the map, JS-measured -- see updateAboveH() in game.js). Using
-       --above-h itself as the margin overshoots that a bit (safety
-       margin) rather than trying to hit it exactly. */
+  }
+
+  /* Extra bottom margin, on top of whatever height the map ends up with
+     above, so the page has enough scroll room for #progress-bar to
+     actually reach the top and stick there -- needs to be at least
+     #progress-bar's own natural distance from the top of the page, i.e.
+     roughly --above-h (real height of everything stacked above the map,
+     JS-measured -- see updateAboveH() in game.js). Using --above-h itself
+     as the margin overshoots that a bit (safety margin) rather than
+     trying to hit it exactly.
+     Only applied while a round's actually being played (#tier-picker
+     visible) -- once it's hidden (round finished, or a different screen
+     like the pool picker), the result panel (or whatever comes next)
+     supplies its own real content below the map, so keeping this spacer
+     would just leave a big empty gap between the map and the score card
+     instead of one that scrolls into something. */
+  main:has(#tier-picker:not([hidden])) #canvas-wrap {
     margin-bottom: var(--above-h, 220px);
   }
 
