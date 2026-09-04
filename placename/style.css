@@ -3,32 +3,35 @@
    score-grade/number/message, buttons -- this page reuses those exact IDs
    so a fix to the shared file fixes both pages at once). */
 
-/* Sticks to the viewport top once the header scrolls past it, showing a
-   running "question N/M, score so far" summary -- shown only while a
-   round's actual question-answering is happening (mirrors
-   #tier-picker's hidden state at every point that changes; see game.js),
-   so it's never up on the pool picker or the result panel, which already
-   shows the real score itself. width:100% so it stretches across
-   `main`'s own centered column instead of shrinking to its text's width,
-   the default for a sticky flex child. */
-#progress-bar {
+/* Sticks ../style.css's own #hint-bar to the viewport top once the header
+   scrolls past it -- it now carries #progress-bar-text (the running
+   "question N/M, score so far" summary, or the archived/finished "已完成
+   挑戰" status once a round's done -- see game.js) alongside the county-
+   overlay toggle and help button, all pinned together in the one bar,
+   rather than a separate sticky bar for just the text sitting above a
+   second, non-sticky bar for the other two. Visible for the whole time a
+   round/mode is active (../style.css's shared #hint-bar[hidden] rule
+   already covers hiding it entirely on the pool picker), unlike the
+   text's own old #progress-bar wrapper which specifically hid itself once
+   a round finished -- #progress-bar-text just switches to the "已完成挑戰"
+   wording then instead, so the toggle/help stay reachable throughout.
+   width:100% so it stretches across `main`'s own centered column instead
+   of shrinking to its content's width, the default for a sticky flex
+   child. */
+#hint-bar {
   position: sticky;
   top: 0;
   z-index: 20;
   width: 100%;
-  display: flex;
-  justify-content: center;
   padding: 8px 14px;
-  margin-bottom: 8px;
   border-radius: 0 0 10px 10px;
   background: var(--ocean-deep);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  font-weight: 700;
-  font-size: 0.9rem;
 }
 
-#progress-bar[hidden] {
-  display: none;
+#progress-bar-text {
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 #help-btn {
@@ -353,14 +356,25 @@
   /* ../style.css's own mobile #canvas-wrap formula assumes a fixed
      "header + hint-bar" height above the map (its "-190px") and knows
      nothing about #action-dock now floating over the map's own bottom
-     edge either -- both assumptions drift here (this page's own longer
-     subtitle/mode-toggle/best-score-line stack, plus the dock's variable
-     height), so this page overrides it with an exact JS-measured budget
-     instead of another guessed constant: --canvas-h-budget is "viewport
-     height minus #canvas-wrap's own top offset minus #action-dock's real
-     height", kept in sync by game.js. 400px is only the pre-JS fallback. */
+     edge either -- both assumptions drift here (this page's own taller,
+     sticky header stack, plus the dock's own variable height), so this
+     page overrides it with two JS-measured quantities instead of more
+     guessed constants: --above-h and --dock-h, kept in sync by game.js
+     (see updateCanvasHeightBudget()'s comment there for why both are
+     subtracted, not just --above-h). The formula still uses 100dvh/100vh
+     directly (not a JS-read window.innerHeight) so a mobile browser's
+     collapsing address-bar chrome is tracked live by the browser itself,
+     same as ../style.css's own version. 220px/130px below are only the
+     pre-JS fallbacks. */
   #canvas-wrap {
-    width: min(100%, calc(var(--canvas-h-budget, 400px) * var(--map-ratio, 0.6)));
+    width: min(
+      100%,
+      calc((100vh - var(--above-h, 220px) - var(--dock-h, 130px)) * var(--map-ratio, 0.6))
+    );
+    width: min(
+      100%,
+      calc((100dvh - var(--above-h, 220px) - var(--dock-h, 130px)) * var(--map-ratio, 0.6))
+    );
   }
 
   #action-dock #tier-picker,

@@ -145,23 +145,42 @@
   const drawCtx = drawCanvas.getContext("2d");
   const resultCtx = resultCanvas.getContext("2d");
 
-  // Keeps --canvas-h-budget (read by style.css's mobile #canvas-wrap width
-  // formula) equal to the actual room available below the header/hint-bar
-  // and above #action-dock's fixed bottom bar -- measured directly rather
-  // than guessed, since both the header stack's height and the dock's
-  // height (tier buttons wrapping to one vs. two rows, confirm/next shown
-  // or not) vary. #canvas-wrap's own top offset is unaffected by either
-  // (nothing above it depends on its own size), so a fresh measurement
-  // each time is enough -- no iteration needed. Recomputed on a
-  // ResizeObserver (covers the dock's height changing) and on window
-  // resize (covers viewport size / rotation changing); ResizeObserver
-  // also delivers an initial call once layout settles, so nothing extra
-  // is needed to set the very first value.
+  // Keeps two custom properties in sync for style.css's mobile #canvas-wrap
+  // width formula: --above-h (real height of everything stacked above the
+  // map -- header, sticky #hint-bar, #tools) and --dock-h (#action-dock's
+  // real height below it). Both measured directly rather than guessed,
+  // since ../style.css's own "-190px" constant knows about neither this
+  // page's own taller header stack (the extra #hint-bar/#tools rows) nor
+  // the dock at all. Both are subtracted -- NOT just --above-h -- because
+  // the map is the actual play surface (the player needs to tap anywhere
+  // on it, right down to Taiwan's southern tip), so #action-dock covering
+  // even its bottom edge would make part of the map unreachable, not just
+  // visually clipped.
+  //
+  // The formula itself still uses CSS's own 100dvh for "how tall is the
+  // viewport right now" rather than a JS-read window.innerHeight -- dvh
+  // already tracks a mobile browser's collapsing address-bar chrome live,
+  // with no JS resize listener needed for that part.
+  //
+  // wrap.getBoundingClientRect().top is relative to the CURRENT SCROLL
+  // POSITION, not the document -- adding window.scrollY converts it to a
+  // scroll-independent measurement (everything above the map is normal
+  // in-flow content, so its total height doesn't actually change with
+  // scroll; only where it currently sits in the viewport does). Getting
+  // this wrong reads as "the map is too small" on a device/moment where
+  // the page happens to be scrolled when this runs.
+  //
+  // A ResizeObserver on #hint-bar and on #action-dock (rather than
+  // recomputing after every individual thing that can change either's
+  // height) since those are the two things whose size actually varies
+  // during play; each also delivers an initial call once layout settles.
   const actionDockEl = document.getElementById("action-dock");
+  const hintBarElForSizing = document.getElementById("hint-bar");
   function updateCanvasHeightBudget() {
-    const budget = window.innerHeight - wrap.getBoundingClientRect().top - actionDockEl.getBoundingClientRect().height;
-    wrap.style.setProperty("--canvas-h-budget", `${Math.max(budget, 120)}px`);
+    wrap.style.setProperty("--above-h", `${wrap.getBoundingClientRect().top + window.scrollY}px`);
+    wrap.style.setProperty("--dock-h", `${actionDockEl.getBoundingClientRect().height}px`);
   }
+  new ResizeObserver(updateCanvasHeightBudget).observe(hintBarElForSizing);
   new ResizeObserver(updateCanvasHeightBudget).observe(actionDockEl);
   window.addEventListener("resize", updateCanvasHeightBudget);
 
@@ -370,10 +389,17 @@
   // ---- Controls ---------------------------------------------------------
   const modeDailyBtn = document.getElementById("mode-daily-btn");
   const modeSpecialBtn = document.getElementById("mode-special-btn");
+  // #hint-bar is now the ONE persistent top bar -- it carries the running
+  // question/score summary (or, once a round's done, the "已完成挑戰"
+  // status text) via #progress-bar-text, alongside the county-overlay
+  // toggle and help button, all sticky together (see style.css). There
+  // used to be a separate #progress-bar wrapper + #question span for
+  // those two roles; #hint-bar's own hidden toggle already covered the
+  // right visibility window for both (see enterDailyMode() etc.), so
+  // they were folded into it instead of tracking a second element in
+  // lockstep.
   const hintBarEl = document.getElementById("hint-bar");
-  const progressBarEl = document.getElementById("progress-bar");
   const progressBarTextEl = document.getElementById("progress-bar-text");
-  const questionEl = document.getElementById("question");
   const tierPickerEl = document.getElementById("tier-picker");
   const feedbackEl = document.getElementById("feedback");
   const controlsEl = document.getElementById("controls");
@@ -483,8 +509,6 @@
     tierPickerEl.hidden = false;
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
-    progressBarEl.hidden = false;
-    questionEl.hidden = true; // the question now lives in #progress-bar while actually playing
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -519,7 +543,7 @@
   // archive, since it's freely replayable rather than one-shot per day.)
   function showArchivedResult(dateStr, entry) {
     const dayLabel = activeDate ? `補玩 ${formatDisplayDate(dateStr)}・` : "";
-    questionEl.textContent = `📍 ${dayLabel}已完成挑戰`;
+    progressBarTextEl.textContent = `📍 ${dayLabel}已完成挑戰`;
     isLegacyArchive = !entry.results;
     results = entry.results
       ? entry.results
@@ -694,8 +718,6 @@
     tierPickerEl.hidden = true;
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
-    progressBarEl.hidden = true;
-    questionEl.hidden = true; // whole #hint-bar is hidden here too, but keep this in sync regardless
     resultPanelEl.hidden = true;
     reviewControlsEl.hidden = true;
     catchupPanel.hidden = true;
@@ -729,8 +751,6 @@
     tierPickerEl.hidden = false;
     feedbackEl.hidden = false;
     controlsEl.hidden = false;
-    progressBarEl.hidden = false;
-    questionEl.hidden = true; // the question now lives in #progress-bar while actually playing
     viewingArchivedResult = false;
     isLegacyArchive = false;
     retrySpecialBtn.hidden = true;
@@ -755,18 +775,14 @@
   backToPoolListBtn.addEventListener("click", enterSpecialPicker);
   retrySpecialBtn.addEventListener("click", () => startSpecialRound(activeSpecialPoolId));
 
-  // The question itself, plus "N/M + score so far", pinned to the
-  // viewport top once the header scrolls past it -- on a long page (map/
-  // tier-picker/controls all stack below) that's otherwise the only place
-  // to see either without scrolling back up. This is now the ONE place
-  // the current question is shown at all (the old #question label in
-  // #hint-bar is repurposed for the archived/read-only "已完成挑戰"
-  // status instead -- see showArchivedResult() -- and hidden the rest of
-  // the time; the two are always shown in lockstep-opposite states).
-  // Shown/hidden in lockstep with #tier-picker at every point that toggles
-  // it (see enterDailyMode(), enterSpecialPicker(), startSpecialRound(),
-  // renderResults()) -- i.e. only while actually answering, never on the
-  // pool picker or the result panel (which already shows the real score).
+  // The question itself, plus "N/M + score so far", written into
+  // #progress-bar-text -- which sits inside #hint-bar, pinned to the
+  // viewport top for the whole time a round/mode is active (see style.css)
+  // so it's visible without scrolling back up on a long page. The same
+  // element also carries the archived/read-only "已完成挑戰" status once a
+  // round's done (see showArchivedResult(), markQuestionDone()) -- only
+  // #hint-bar's own hidden toggle matters for visibility (enterDailyMode(),
+  // enterSpecialPicker(), startSpecialRound()); nothing here needs its own.
   function updateProgressBar() {
     const q = questions[questionIndex];
     const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
@@ -791,10 +807,10 @@
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     renderTierButtons();
     updateProgressBar();
-    // Explicit alongside the ResizeObserver set up above -- confirm/next
+    // Explicit alongside the ResizeObservers set up above -- confirm/next
     // just went from possibly-shown back to both hidden, which changes
     // #action-dock's height, and a background/inactive tab can't be
-    // relied on to deliver that observer's callback promptly.
+    // relied on to deliver those observers' callbacks promptly.
     updateCanvasHeightBudget();
   }
 
@@ -846,7 +862,7 @@
     circlePx = canvasPointFromEvent(evt);
     redrawPreview();
     confirmBtn.hidden = false;
-    updateCanvasHeightBudget(); // #action-dock just grew by one button -- see startQuestion()'s call for why this isn't left to the ResizeObserver alone
+    updateCanvasHeightBudget(); // #action-dock just grew by one button -- see startQuestion()'s call for why this isn't left to the ResizeObservers alone
   });
 
   confirmBtn.addEventListener("click", () => {
@@ -952,8 +968,6 @@
     tierPickerEl.hidden = true;
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
-    progressBarEl.hidden = true;
-    questionEl.hidden = false; // back to its archived-status role now that #progress-bar is hidden
     resultPanelEl.hidden = false;
     // #action-dock just collapsed to nothing (style.css hides it once
     // #tier-picker[hidden]) -- let the map immediately reclaim that space.
@@ -1025,14 +1039,14 @@
     });
   }
 
-  // #question is only ever visible while #progress-bar is hidden (i.e. once
-  // a round's actually finished) -- gives it something to show for a fresh
-  // finish, same idea as showArchivedResult()'s "已完成挑戰" text for a
-  // past one, so it's never just sitting there empty.
+  // Overwrites #progress-bar-text's in-progress "第 N 題..." wording with
+  // a finished-status one right as a round wraps up -- same idea as
+  // showArchivedResult()'s "已完成挑戰" text for a past one, so the bar
+  // never keeps showing stale in-progress text once the round is over.
   function markQuestionDone() {
     const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";
     const icon = mode === "special" ? "🎯" : "📍";
-    questionEl.textContent = `${icon} ${dayLabel}已完成挑戰`;
+    progressBarTextEl.textContent = `${icon} ${dayLabel}已完成挑戰`;
   }
 
   function finishChallenge() {
@@ -1318,10 +1332,10 @@
   });
 
   enterDailyMode();
-  // Belt-and-suspenders alongside the ResizeObserver above: sets the very
-  // first --canvas-h-budget value right away instead of waiting on that
-  // observer's own initial notification (which, being tied to the
-  // rendering pipeline, isn't guaranteed to land before the first paint
-  // a player actually sees).
+  // Belt-and-suspenders alongside the ResizeObservers above: sets the very
+  // first --above-h/--dock-h values right away instead of waiting on
+  // their own initial notification (which, being tied to the rendering
+  // pipeline, isn't guaranteed to land before the first paint a player
+  // actually sees).
   updateCanvasHeightBudget();
 })();
