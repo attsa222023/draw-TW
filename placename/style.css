@@ -355,23 +355,30 @@
     display: none;
   }
 
-  /* ../style.css's own mobile #canvas-wrap formula assumes a fixed
-     "header + hint-bar" height above the map (its "-190px"), which drifts
-     here since this page's own header stack is taller (the extra
-     #tools/#hint-bar/#progress-bar rows) -- overridden with --above-h, a
-     JS-measured real height instead of another guessed constant, kept in
-     sync by game.js. Deliberately does NOT also subtract #action-dock's
-     own height below the map -- see updateAboveH()'s comment in game.js
-     for why (short version: it keeps the page genuinely scrollable, which
-     is what makes #progress-bar/#action-dock's sticky/fixed positioning
-     visibly "float" as the page scrolls). The formula still uses
-     100dvh/100vh directly (not a JS-read window.innerHeight) so a mobile
-     browser's collapsing address-bar chrome is tracked live by the
-     browser itself, same as ../style.css's own version. 220px below is
-     only the pre-JS fallback. */
+  /* Sized off the full viewport height rather than ../style.css's own
+     "-190px" (or a page-specific equivalent) -- on a narrow phone this
+     page's tall, portrait-oriented map ends up WIDTH-bound anyway (100%
+     of `main`'s own column, well under what the height budget alone would
+     allow), so subtracting the header's height from that budget barely
+     changes the map's own final size; it only shrinks how much of the
+     page ends up genuinely scrollable, right when this page's own header
+     stack (#tools/#hint-bar/#progress-bar on top of the usual header) is
+     taller than the plain draw challenge's. Not enough scroll room means
+     #progress-bar (sticky) never actually reaches the top before hitting
+     the bottom of the page, so it visually never "floats" -- it just
+     looks like a plain top bar. */
   #canvas-wrap {
-    width: min(100%, calc((100vh - var(--above-h, 220px)) * var(--map-ratio, 0.6)));
-    width: min(100%, calc((100dvh - var(--above-h, 220px)) * var(--map-ratio, 0.6)));
+    width: min(100%, calc(100vh * var(--map-ratio, 0.6)));
+    width: min(100%, calc(100dvh * var(--map-ratio, 0.6)));
+    /* Extra bottom margin, on top of whatever height the map ends up
+       with above, so the page has enough scroll room for #progress-bar
+       to actually reach the top and stick there -- needs to be at least
+       #progress-bar's own natural distance from the top of the page,
+       i.e. roughly --above-h (real height of everything stacked above
+       the map, JS-measured -- see updateAboveH() in game.js). Using
+       --above-h itself as the margin overshoots that a bit (safety
+       margin) rather than trying to hit it exactly. */
+    margin-bottom: var(--above-h, 220px);
   }
 
   #action-dock #tier-picker,
