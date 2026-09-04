@@ -147,15 +147,15 @@
 
   // Keeps two custom properties in sync for style.css's mobile #canvas-wrap
   // width formula: --above-h (real height of everything stacked above the
-  // map -- header, sticky #hint-bar, #tools) and --dock-h (#action-dock's
-  // real height below it). Both measured directly rather than guessed,
-  // since ../style.css's own "-190px" constant knows about neither this
-  // page's own taller header stack (the extra #hint-bar/#tools rows) nor
-  // the dock at all. Both are subtracted -- NOT just --above-h -- because
-  // the map is the actual play surface (the player needs to tap anywhere
-  // on it, right down to Taiwan's southern tip), so #action-dock covering
-  // even its bottom edge would make part of the map unreachable, not just
-  // visually clipped.
+  // map -- header, #tools, #hint-bar, sticky #progress-bar) and --dock-h
+  // (#action-dock's real height below it). Both measured directly rather
+  // than guessed, since ../style.css's own "-190px" constant knows about
+  // neither this page's own taller header stack (the extra #tools/
+  // #hint-bar/#progress-bar rows) nor the dock at all. Both are
+  // subtracted -- NOT just --above-h -- because the map is the actual
+  // play surface (the player needs to tap anywhere on it, right down to
+  // Taiwan's southern tip), so #action-dock covering even its bottom edge
+  // would make part of the map unreachable, not just visually clipped.
   //
   // The formula itself still uses CSS's own 100dvh for "how tall is the
   // viewport right now" rather than a JS-read window.innerHeight -- dvh
@@ -170,17 +170,19 @@
   // this wrong reads as "the map is too small" on a device/moment where
   // the page happens to be scrolled when this runs.
   //
-  // A ResizeObserver on #hint-bar and on #action-dock (rather than
+  // A ResizeObserver on #progress-bar and on #action-dock (rather than
   // recomputing after every individual thing that can change either's
   // height) since those are the two things whose size actually varies
-  // during play; each also delivers an initial call once layout settles.
+  // during play (#progress-bar's question/status text can wrap to more
+  // lines; #hint-bar and everything else above the map is static) -- each
+  // also delivers an initial call once layout settles.
   const actionDockEl = document.getElementById("action-dock");
-  const hintBarElForSizing = document.getElementById("hint-bar");
+  const progressBarElForSizing = document.getElementById("progress-bar");
   function updateCanvasHeightBudget() {
     wrap.style.setProperty("--above-h", `${wrap.getBoundingClientRect().top + window.scrollY}px`);
     wrap.style.setProperty("--dock-h", `${actionDockEl.getBoundingClientRect().height}px`);
   }
-  new ResizeObserver(updateCanvasHeightBudget).observe(hintBarElForSizing);
+  new ResizeObserver(updateCanvasHeightBudget).observe(progressBarElForSizing);
   new ResizeObserver(updateCanvasHeightBudget).observe(actionDockEl);
   window.addEventListener("resize", updateCanvasHeightBudget);
 
@@ -389,16 +391,17 @@
   // ---- Controls ---------------------------------------------------------
   const modeDailyBtn = document.getElementById("mode-daily-btn");
   const modeSpecialBtn = document.getElementById("mode-special-btn");
-  // #hint-bar is now the ONE persistent top bar -- it carries the running
-  // question/score summary (or, once a round's done, the "已完成挑戰"
-  // status text) via #progress-bar-text, alongside the county-overlay
-  // toggle and help button, all sticky together (see style.css). There
-  // used to be a separate #progress-bar wrapper + #question span for
-  // those two roles; #hint-bar's own hidden toggle already covered the
-  // right visibility window for both (see enterDailyMode() etc.), so
-  // they were folded into it instead of tracking a second element in
-  // lockstep.
+  // #hint-bar (county-overlay toggle + help button, NOT sticky) and
+  // #progress-bar (the running question/score summary, or the archived/
+  // finished "已完成挑戰" status once a round's done -- see
+  // updateProgressBar()/markQuestionDone()/showArchivedResult(), all of
+  // which write into #progress-bar-text -- sticky) are two separate bars,
+  // in that display order, both toggled hidden in lockstep at every place
+  // that changes either (see enterDailyMode(), enterSpecialPicker(),
+  // startSpecialRound()) -- i.e. both visible for the whole time a
+  // round/mode is active, both hidden entirely on the pool picker.
   const hintBarEl = document.getElementById("hint-bar");
+  const progressBarEl = document.getElementById("progress-bar");
   const progressBarTextEl = document.getElementById("progress-bar-text");
   const tierPickerEl = document.getElementById("tier-picker");
   const feedbackEl = document.getElementById("feedback");
@@ -471,6 +474,7 @@
     MAX_SCORE = TIER_POINTS_SUM * maxUsesPerTier;
     helpBtn.hidden = false;
     hintBarEl.hidden = false;
+    progressBarEl.hidden = false;
     wrap.hidden = false;
     specialPoolPickerEl.hidden = true;
 
@@ -714,6 +718,7 @@
 
     helpBtn.hidden = true;
     hintBarEl.hidden = true;
+    progressBarEl.hidden = true;
     wrap.hidden = true;
     tierPickerEl.hidden = true;
     feedbackEl.hidden = true;
@@ -738,6 +743,7 @@
 
     helpBtn.hidden = true;
     hintBarEl.hidden = false;
+    progressBarEl.hidden = false;
     wrap.hidden = false;
     specialPoolPickerEl.hidden = true;
 
@@ -776,13 +782,14 @@
   retrySpecialBtn.addEventListener("click", () => startSpecialRound(activeSpecialPoolId));
 
   // The question itself, plus "N/M + score so far", written into
-  // #progress-bar-text -- which sits inside #hint-bar, pinned to the
-  // viewport top for the whole time a round/mode is active (see style.css)
-  // so it's visible without scrolling back up on a long page. The same
-  // element also carries the archived/read-only "已完成挑戰" status once a
-  // round's done (see showArchivedResult(), markQuestionDone()) -- only
-  // #hint-bar's own hidden toggle matters for visibility (enterDailyMode(),
-  // enterSpecialPicker(), startSpecialRound()); nothing here needs its own.
+  // #progress-bar-text -- which sits inside the sticky #progress-bar,
+  // pinned to the viewport top for the whole time a round/mode is active
+  // (see style.css) so it's visible without scrolling back up on a long
+  // page. The same element also carries the archived/read-only "已完成
+  // 挑戰" status once a round's done (see showArchivedResult(),
+  // markQuestionDone()) -- #progress-bar's own hidden toggle (kept in
+  // lockstep with #hint-bar -- see enterDailyMode() etc.) already covers
+  // the right visibility window for both, so nothing here needs its own.
   function updateProgressBar() {
     const q = questions[questionIndex];
     const dayLabel = mode === "daily" && activeDate ? `補玩 ${formatDisplayDate(activeDate)}・` : "";

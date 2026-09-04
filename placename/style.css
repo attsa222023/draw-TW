@@ -3,35 +3,37 @@
    score-grade/number/message, buttons -- this page reuses those exact IDs
    so a fix to the shared file fixes both pages at once). */
 
-/* Sticks ../style.css's own #hint-bar to the viewport top once the header
-   scrolls past it -- it now carries #progress-bar-text (the running
-   "question N/M, score so far" summary, or the archived/finished "已完成
-   挑戰" status once a round's done -- see game.js) alongside the county-
-   overlay toggle and help button, all pinned together in the one bar,
-   rather than a separate sticky bar for just the text sitting above a
-   second, non-sticky bar for the other two. Visible for the whole time a
-   round/mode is active (../style.css's shared #hint-bar[hidden] rule
-   already covers hiding it entirely on the pool picker), unlike the
-   text's own old #progress-bar wrapper which specifically hid itself once
-   a round finished -- #progress-bar-text just switches to the "已完成挑戰"
-   wording then instead, so the toggle/help stay reachable throughout.
-   width:100% so it stretches across `main`'s own centered column instead
-   of shrinking to its content's width, the default for a sticky flex
-   child. */
-#hint-bar {
+/* Sticks to the viewport top once the header scrolls past it, showing the
+   running "question N/M, score so far" summary -- or, once a round's
+   done, the archived/finished "已完成挑戰" status (see game.js's
+   updateProgressBar()/markQuestionDone()/showArchivedResult(), all of
+   which write into #progress-bar-text). Deliberately its OWN bar,
+   separate from ../style.css's #hint-bar (the county-overlay toggle +
+   help button) which sits above it and is NOT sticky -- ordered
+   #tools -> #hint-bar -> #progress-bar -> #canvas-wrap. Hidden in
+   lockstep with #hint-bar (see enterDailyMode() etc. in game.js) --
+   i.e. visible for the whole time a round/mode is active, only hidden
+   entirely on the pool picker. width:100% so it stretches across
+   `main`'s own centered column instead of shrinking to its text's width,
+   the default for a sticky flex child. */
+#progress-bar {
   position: sticky;
   top: 0;
   z-index: 20;
   width: 100%;
+  display: flex;
+  justify-content: center;
   padding: 8px 14px;
+  margin-bottom: 8px;
   border-radius: 0 0 10px 10px;
   background: var(--ocean-deep);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-
-#progress-bar-text {
   font-weight: 700;
   font-size: 0.9rem;
+}
+
+#progress-bar[hidden] {
+  display: none;
 }
 
 #help-btn {

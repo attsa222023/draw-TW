@@ -13,23 +13,29 @@
      with the root page's own assets isn't necessary -- this page's files
      are independent, just bump whichever ones actually changed. -->
 <link rel="stylesheet" href="../style.css?v=1">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <header>
     <h1>📍 每日台灣地名挑戰</h1>
     <p class="subtitle tagline">地圖已經攤在你眼前，用最小的圈精準命中每個地名，拿下最高分！</p>
+    <p class="cross-link"><a href="../">🇹🇼 也來玩畫出台灣 →</a></p>
     <div id="mode-toggle">
       <button id="mode-daily-btn" class="mode-btn active" type="button">📅 每日挑戰</button>
       <button id="mode-special-btn" class="mode-btn" type="button">🎯 特殊挑戰</button>
     </div>
     <p id="best-score-line" class="subtitle">🏆 最高紀錄：尚未挑戰</p>
-    <p class="cross-link"><a href="../">🇹🇼 也來玩畫出台灣 →</a></p>
   </header>
 
   <main>
+    <div id="tools">
+      <button id="catchup-btn" type="button">📅 補玩錯過的挑戰</button>
+      <button id="archive-btn" type="button">📦 成績封存</button>
+      <button id="back-to-today-btn" type="button" hidden>↩️ 返回今天</button>
+      <button id="back-to-pool-list-btn" type="button" hidden>⬅️ 選擇題庫</button>
+    </div>
+
     <div id="hint-bar">
-      <span id="progress-bar-text" class="hint"></span>
       <label id="county-toggle-label" class="hint toggle-hint">
         <input type="checkbox" id="county-overlay-toggle" checked>
         顯示縣市名稱與界線
@@ -37,12 +43,10 @@
       <button id="help-btn" class="hint" type="button" aria-label="怎麼玩？" title="怎麼玩？">❓</button>
     </div>
 
-    <div id="tools">
-      <button id="catchup-btn" type="button">📅 補玩錯過的挑戰</button>
-      <button id="archive-btn" type="button">📦 成績封存</button>
-      <button id="back-to-today-btn" type="button" hidden>↩️ 返回今天</button>
-      <button id="back-to-pool-list-btn" type="button" hidden>⬅️ 選擇題庫</button>
+    <div id="progress-bar" hidden>
+      <span id="progress-bar-text"></span>
     </div>
+
     <div id="catchup-panel" hidden>
       <p class="catchup-panel-title">選擇想補玩的日期：</p>
       <div id="catchup-list"></div>
@@ -117,6 +121,6 @@
   <script src="data.js?v=1"></script>
   <script src="special-data.js?v=2"></script>
   <script src="../records.js?v=3"></script>
-  <script src="game.js?v=16"></script>
+  <script src="game.js?v=17"></script>
 </body>
 </html>
