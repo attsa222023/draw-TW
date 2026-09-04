@@ -206,6 +206,25 @@
   cursor: not-allowed;
 }
 
+/* The collapsed-state stand-in for the whole 5-button row (see
+   buildTierChip() in game.js) -- a single wide chip instead of a normal-
+   width pill, so it reads as "the one control now standing in for a
+   whole row" rather than just a smaller version of the same button. */
+.tier-chip {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tier-chip-change {
+  font-size: 0.78rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
 #feedback {
   margin-top: 10px;
   min-height: 1.2em;

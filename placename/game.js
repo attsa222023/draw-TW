@@ -298,6 +298,15 @@
   let selectedTierIndex = null; // tier picked for the CURRENT question, if any
   let circlePx = null; // {x,y} of the not-yet-confirmed circle placement, if any
   let answered = false; // true once the current question has been confirmed (reveal shown)
+  // Once a tier's picked, the full 5-button row collapses to a single
+  // compact chip showing just that choice -- the row eats into the map's
+  // own space (it lives in the fixed #action-dock on mobile), and once a
+  // size is picked there's nothing left to compare, so keeping all 5 up
+  // just to show which one is selected wastes room. Tapping the chip
+  // re-expands the row so a different size can still be picked. Reset
+  // to false (expanded) at the top of every fresh question -- see
+  // startQuestion().
+  let tierPickerCollapsed = false;
   // [{name, question, extra, lon, lat, tierIndex, correct, distanceKm}], one
   // per answered question. `question`/`extra` are only present for special-
   // mode entries (the riddle text and the answer's stat, e.g. "3,952m") --
@@ -808,6 +817,7 @@
     selectedTierIndex = null;
     circlePx = null;
     answered = false;
+    tierPickerCollapsed = false;
     feedbackEl.textContent = "";
     confirmBtn.hidden = true;
     nextBtn.hidden = true;
@@ -819,6 +829,16 @@
 
   function renderTierButtons() {
     tierPickerEl.innerHTML = "";
+    // Once a tier's picked, show just that choice as a single compact
+    // chip instead of the full 5-button row -- tapping the chip re-
+    // expands it (see tierPickerCollapsed's own comment above for why).
+    // Not once `answered` though -- there's nothing left to change by
+    // then, and the row is about to disappear/reset anyway (next
+    // question or the round finishing).
+    if (selectedTierIndex !== null && tierPickerCollapsed && !answered) {
+      tierPickerEl.appendChild(buildTierChip());
+      return;
+    }
     PLACENAME_CIRCLE_TIERS.forEach((tier, i) => {
       const usesLeft = tierUsesLeft[i];
       const used = usesLeft <= 0;
@@ -839,11 +859,38 @@
       btn.disabled = used || answered;
       btn.addEventListener("click", () => {
         selectedTierIndex = i;
+        tierPickerCollapsed = true;
         renderTierButtons();
         redrawPreview();
       });
       tierPickerEl.appendChild(btn);
     });
+  }
+
+  // The collapsed-state stand-in for the full tier-button row -- shows
+  // the picked tier's label plus a "🔄 更換" affordance; tapping anywhere
+  // on it re-expands the row so a different size can still be picked
+  // (doesn't touch selectedTierIndex itself, so the current circle
+  // preview, if any, stays exactly as it was until a new tier's actually
+  // tapped). Skips the expanded row's remaining-uses badge -- that's most
+  // useful while still comparing tiers, not after one's already picked.
+  function buildTierChip() {
+    const tier = PLACENAME_CIRCLE_TIERS[selectedTierIndex];
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "tier-btn selected tier-chip";
+    const label = document.createElement("span");
+    label.textContent = `${tier.label}（${tier.points}分）`;
+    chip.appendChild(label);
+    const change = document.createElement("span");
+    change.className = "tier-chip-change";
+    change.textContent = "🔄 更換";
+    chip.appendChild(change);
+    chip.addEventListener("click", () => {
+      tierPickerCollapsed = false;
+      renderTierButtons();
+    });
+    return chip;
   }
 
   function redrawPreview() {
