@@ -356,27 +356,22 @@
   }
 
   /* ../style.css's own mobile #canvas-wrap formula assumes a fixed
-     "header + hint-bar" height above the map (its "-190px") and knows
-     nothing about #action-dock now floating over the map's own bottom
-     edge either -- both assumptions drift here (this page's own taller,
-     sticky header stack, plus the dock's own variable height), so this
-     page overrides it with two JS-measured quantities instead of more
-     guessed constants: --above-h and --dock-h, kept in sync by game.js
-     (see updateCanvasHeightBudget()'s comment there for why both are
-     subtracted, not just --above-h). The formula still uses 100dvh/100vh
-     directly (not a JS-read window.innerHeight) so a mobile browser's
-     collapsing address-bar chrome is tracked live by the browser itself,
-     same as ../style.css's own version. 220px/130px below are only the
-     pre-JS fallbacks. */
+     "header + hint-bar" height above the map (its "-190px"), which drifts
+     here since this page's own header stack is taller (the extra
+     #tools/#hint-bar/#progress-bar rows) -- overridden with --above-h, a
+     JS-measured real height instead of another guessed constant, kept in
+     sync by game.js. Deliberately does NOT also subtract #action-dock's
+     own height below the map -- see updateAboveH()'s comment in game.js
+     for why (short version: it keeps the page genuinely scrollable, which
+     is what makes #progress-bar/#action-dock's sticky/fixed positioning
+     visibly "float" as the page scrolls). The formula still uses
+     100dvh/100vh directly (not a JS-read window.innerHeight) so a mobile
+     browser's collapsing address-bar chrome is tracked live by the
+     browser itself, same as ../style.css's own version. 220px below is
+     only the pre-JS fallback. */
   #canvas-wrap {
-    width: min(
-      100%,
-      calc((100vh - var(--above-h, 220px) - var(--dock-h, 130px)) * var(--map-ratio, 0.6))
-    );
-    width: min(
-      100%,
-      calc((100dvh - var(--above-h, 220px) - var(--dock-h, 130px)) * var(--map-ratio, 0.6))
-    );
+    width: min(100%, calc((100vh - var(--above-h, 220px)) * var(--map-ratio, 0.6)));
+    width: min(100%, calc((100dvh - var(--above-h, 220px)) * var(--map-ratio, 0.6)));
   }
 
   #action-dock #tier-picker,

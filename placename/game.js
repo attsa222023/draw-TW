@@ -145,19 +145,26 @@
   const drawCtx = drawCanvas.getContext("2d");
   const resultCtx = resultCanvas.getContext("2d");
 
-  // Keeps two custom properties in sync for style.css's mobile #canvas-wrap
-  // width formula: --above-h (real height of everything stacked above the
-  // map -- header, #tools, #hint-bar, sticky #progress-bar) and --dock-h
-  // (#action-dock's real height below it). Both measured directly rather
-  // than guessed, since ../style.css's own "-190px" constant knows about
-  // neither this page's own taller header stack (the extra #tools/
-  // #hint-bar/#progress-bar rows) nor the dock at all. Both are
-  // subtracted -- NOT just --above-h -- because the map is the actual
-  // play surface (the player needs to tap anywhere on it, right down to
-  // Taiwan's southern tip), so #action-dock covering even its bottom edge
-  // would make part of the map unreachable, not just visually clipped.
+  // Keeps --above-h (read by style.css's mobile #canvas-wrap width
+  // formula) equal to the real height of everything stacked above the map
+  // -- header, #tools, #hint-bar, sticky #progress-bar -- measured
+  // directly rather than guessed, since ../style.css's own "-190px"
+  // constant knows nothing about this page's own taller header stack (the
+  // extra #tools/#hint-bar/#progress-bar rows).
   //
-  // The formula itself still uses CSS's own 100dvh for "how tall is the
+  // Deliberately does NOT also reserve room for #action-dock below the
+  // map -- the map is sized purely by what's ABOVE it, same as
+  // ../style.css's own version, so the page keeps real scrollable
+  // overflow instead of being squeezed to fit the viewport exactly. That
+  // overflow is what makes #progress-bar (sticky) and #action-dock
+  // (fixed) visibly "float" as the page scrolls -- with nothing to
+  // scroll, sticky/fixed positioning is technically still correct but
+  // never visibly does anything. The map's very bottom edge may sit
+  // behind the dock at rest; scrolling down moves that same strip of map
+  // up and out from under it (the dock stays put, pinned to the
+  // viewport), so it's still reachable, just not without scrolling.
+  //
+  // The formula itself uses CSS's own 100dvh for "how tall is the
   // viewport right now" rather than a JS-read window.innerHeight -- dvh
   // already tracks a mobile browser's collapsing address-bar chrome live,
   // with no JS resize listener needed for that part.
@@ -166,25 +173,19 @@
   // POSITION, not the document -- adding window.scrollY converts it to a
   // scroll-independent measurement (everything above the map is normal
   // in-flow content, so its total height doesn't actually change with
-  // scroll; only where it currently sits in the viewport does). Getting
-  // this wrong reads as "the map is too small" on a device/moment where
-  // the page happens to be scrolled when this runs.
+  // scroll; only where it currently sits in the viewport does).
   //
-  // A ResizeObserver on #progress-bar and on #action-dock (rather than
-  // recomputing after every individual thing that can change either's
-  // height) since those are the two things whose size actually varies
-  // during play (#progress-bar's question/status text can wrap to more
-  // lines; #hint-bar and everything else above the map is static) -- each
-  // also delivers an initial call once layout settles.
-  const actionDockEl = document.getElementById("action-dock");
-  const progressBarElForSizing = document.getElementById("progress-bar");
-  function updateCanvasHeightBudget() {
+  // A ResizeObserver on #progress-bar (rather than recomputing after
+  // every individual thing that can change its height) since that's the
+  // one part of "everything above the map" whose size actually varies
+  // during play (the question/status text can wrap to more lines;
+  // #hint-bar and the header above it are static) -- it also delivers an
+  // initial call once layout settles.
+  function updateAboveH() {
     wrap.style.setProperty("--above-h", `${wrap.getBoundingClientRect().top + window.scrollY}px`);
-    wrap.style.setProperty("--dock-h", `${actionDockEl.getBoundingClientRect().height}px`);
   }
-  new ResizeObserver(updateCanvasHeightBudget).observe(progressBarElForSizing);
-  new ResizeObserver(updateCanvasHeightBudget).observe(actionDockEl);
-  window.addEventListener("resize", updateCanvasHeightBudget);
+  new ResizeObserver(updateAboveH).observe(document.getElementById("progress-bar"));
+  window.addEventListener("resize", updateAboveH);
 
   // Mutable projection state, set by configureProjection() -- this mode
   // never rotates (currentRotationDeg always 0), but toCanvas() still
@@ -813,12 +814,7 @@
     drawCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     resultCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     renderTierButtons();
-    updateProgressBar();
-    // Explicit alongside the ResizeObservers set up above -- confirm/next
-    // just went from possibly-shown back to both hidden, which changes
-    // #action-dock's height, and a background/inactive tab can't be
-    // relied on to deliver those observers' callbacks promptly.
-    updateCanvasHeightBudget();
+    updateProgressBar(); // #progress-bar's own ResizeObserver (see updateAboveH()) picks up any resulting height change on its own
   }
 
   function renderTierButtons() {
@@ -869,7 +865,6 @@
     circlePx = canvasPointFromEvent(evt);
     redrawPreview();
     confirmBtn.hidden = false;
-    updateCanvasHeightBudget(); // #action-dock just grew by one button -- see startQuestion()'s call for why this isn't left to the ResizeObservers alone
   });
 
   confirmBtn.addEventListener("click", () => {
@@ -930,11 +925,10 @@
 
     if (questionIndex < questions.length - 1) {
       nextBtn.hidden = false;
-      updateCanvasHeightBudget(); // #action-dock's #controls button swapped confirm -> next
     } else if (mode === "daily") {
-      finishChallenge(); // hides #action-dock entirely -- renderResults() inside it calls updateCanvasHeightBudget() itself
+      finishChallenge();
     } else {
-      finishSpecialRound(); // same as above
+      finishSpecialRound();
     }
   });
 
@@ -976,9 +970,11 @@
     feedbackEl.hidden = true;
     controlsEl.hidden = true;
     resultPanelEl.hidden = false;
-    // #action-dock just collapsed to nothing (style.css hides it once
-    // #tier-picker[hidden]) -- let the map immediately reclaim that space.
-    updateCanvasHeightBudget();
+    // Explicit alongside the ResizeObserver set up above -- #progress-bar-
+    // text's wording just changed (markQuestionDone(), called just before
+    // this), and a background/inactive tab can't be relied on to deliver
+    // that observer's callback promptly.
+    updateAboveH();
     // Nothing to review when there isn't even a reconstructable place-name
     // list for this entry (shouldn't happen in practice -- questionsForDate()
     // always returns 5 -- but stays as a safety net).
@@ -1339,10 +1335,10 @@
   });
 
   enterDailyMode();
-  // Belt-and-suspenders alongside the ResizeObservers above: sets the very
-  // first --above-h/--dock-h values right away instead of waiting on
-  // their own initial notification (which, being tied to the rendering
-  // pipeline, isn't guaranteed to land before the first paint a player
-  // actually sees).
-  updateCanvasHeightBudget();
+  // Belt-and-suspenders alongside the ResizeObserver above: sets the very
+  // first --above-h value right away instead of waiting on that
+  // observer's own initial notification (which, being tied to the
+  // rendering pipeline, isn't guaranteed to land before the first paint
+  // a player actually sees).
+  updateAboveH();
 })();
