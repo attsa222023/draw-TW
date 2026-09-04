@@ -42,6 +42,21 @@
   font-family: inherit;
 }
 
+/* ../style.css's #canvas-wrap sets touch-action: none for the draw
+   challenge's own freehand-stroke dragging -- any touch-move while
+   drawing there must NOT also scroll the page underneath it. This page
+   only ever needs a single tap to place a circle (see the pointerdown
+   handler in game.js), never a drag, so blocking every touch gesture on
+   the canvas is unnecessarily restrictive here -- and now that the map
+   fills most of the screen (see #canvas-wrap's own mobile sizing further
+   below), most vertical swipes start on it, making the page nearly
+   impossible to scroll. pan-y still lets a tap register immediately
+   (pointerdown fires the instant a finger touches down, independent of
+   touch-action) while letting a vertical swipe scroll the page normally. */
+#canvas-wrap {
+  touch-action: pan-y;
+}
+
 /* Same wrapper pattern as ../style.css's #challenge-tools (the draw
    challenge's own catch-up button row) -- a separate rule since this
    page names its own version #tools rather than reusing that exact ID. */
