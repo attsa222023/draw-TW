@@ -16,7 +16,10 @@
 // available) rather than guessed, since gameplay correctness depends on
 // them. `extra` (a short stat shown alongside the answer once revealed) is
 // optional -- omit it entirely for a question with no natural stat to show,
-// as pool 2 below does.
+// as pool 2 below does. `note` is also optional -- a longer footnote
+// (origin/context, a correction, etc.) shown under that question's line in
+// the round-end breakdown only (never during play, and never on the
+// shareable score card -- see renderResults()/buildScoreCard() in game.js).
 const SPECIAL_POOLS = [
   {
     id: "highest",
@@ -52,7 +55,14 @@ const SPECIAL_POOLS = [
     questions: [
       { question: "傑哥不要", name: "基隆市", lon: 121.744553, lat: 25.131645 },
       { question: "出事了阿伯", name: "成功嶺", lon: 120.600736, lat: 24.112617 },
-      { question: "一定是大拇指的啦", name: "雙龍村", lon: 121.092676, lat: 23.697529 },
+      {
+        question: "一定是大拇指的啦",
+        name: "雙龍村",
+        note:
+          "源自公視節目《我們的島》，介紹南投信義鄉雙龍村的布農族文化時，村民 Dama Umi 在受訪談到村裡代表隊得到第三名時的回答。不過運動會地點其實在羅娜村。",
+        lon: 121.092676,
+        lat: 23.697529,
+      },
       { question: "用生命在拍英文報告", name: "國立高雄科技大學", lon: 120.32664, lat: 22.649114 },
       { question: "我的豆花30塊", name: "苗栗市府前路", lon: 120.819156, lat: 24.561561 },
       { question: "YO！BATTLE", name: "台南新豐高中", lon: 120.295809, lat: 22.971863 },

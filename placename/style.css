@@ -261,6 +261,20 @@
   text-align: left;
 }
 
+/* Special-mode trivia footnote (see special-data.js's `note` field, and
+   renderResults() in game.js) -- sits right under its own .analysis-line
+   as a visually secondary aside: smaller, dimmer, and pulled up close via
+   a negative top margin (undoes #breakdown's own gap for this one pair)
+   so it reads as "attached to" that line rather than its own separate
+   entry. */
+.analysis-note {
+  margin-top: -4px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
 #result-buttons {
   display: flex;
   gap: 10px;

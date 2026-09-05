@@ -307,11 +307,13 @@
   // to false (expanded) at the top of every fresh question -- see
   // startQuestion().
   let tierPickerCollapsed = false;
-  // [{name, question, extra, lon, lat, tierIndex, correct, distanceKm}], one
-  // per answered question. `question`/`extra` are only present for special-
-  // mode entries (the riddle text and the answer's stat, e.g. "3,952m") --
-  // undefined for daily entries, which show the place name as the question
-  // itself. For a reconstructed pre-archive-feature legacy daily entry (see
+  // [{name, question, extra, note, lon, lat, tierIndex, correct,
+  // distanceKm}], one per answered question. `question`/`extra`/`note` are
+  // only present for special-mode entries (the riddle text, the answer's
+  // stat e.g. "3,952m", and an optional longer footnote shown only in the
+  // round-end breakdown -- see renderResults()) -- undefined for daily
+  // entries, which show the place name as the question itself. For a
+  // reconstructed pre-archive-feature legacy daily entry (see
   // showArchivedResult), tierIndex/correct/distanceKm are null instead: the
   // day's actual place names are recoverable (questionsForDate() is
   // deterministic), but which tier the player picked and whether they hit
@@ -930,6 +932,7 @@
       name: target.name,
       question: target.question,
       extra: target.extra,
+      note: target.note,
       lon: target.lon,
       lat: target.lat,
       tierIndex: selectedTierIndex,
@@ -1011,6 +1014,18 @@
           : `${i + 1}. ${label} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
       }
       breakdownEl.appendChild(div);
+      // Special mode only, and only for the handful of questions that
+      // have one (see special-data.js's own comment on `note`) -- extra
+      // context/trivia about that answer, shown only here (never during
+      // play, never on the shareable score card -- see buildScoreCard()'s
+      // own .analysis-line-only selector) since it's flavor, not something
+      // that needs to compete for space while actually playing.
+      if (r.note) {
+        const noteDiv = document.createElement("div");
+        noteDiv.className = "analysis-note";
+        noteDiv.textContent = `📖 ${r.note}`;
+        breakdownEl.appendChild(noteDiv);
+      }
     });
 
     tierPickerEl.hidden = true;
@@ -1346,7 +1361,10 @@
 
     ctx.fillStyle = "rgba(234,246,255,0.85)";
     ctx.font = "13px sans-serif";
-    for (const line of [...breakdownEl.children].map((el) => el.textContent)) {
+    // .analysis-line only -- skips any .analysis-note siblings (special-
+    // mode trivia, see renderResults()), which are flavor for on-screen
+    // reading, not meant to pad out the shareable card.
+    for (const line of [...breakdownEl.querySelectorAll(".analysis-line")].map((el) => el.textContent)) {
       y += wrapText(ctx, line, cardW / 2, y + 14, contentW - 20, 18);
       y += 4;
     }
