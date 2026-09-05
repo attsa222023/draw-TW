@@ -275,6 +275,36 @@
   opacity: 0.75;
 }
 
+.analysis-note[hidden] {
+  display: none;
+}
+
+/* .analysis-line becomes a row (text on the left, the 📖 toggle -- when
+   that question has one -- pinned to the right) instead of plain block
+   text, so the button reads as attached to its own line rather than
+   just trailing text wrapping onto it. */
+#breakdown .analysis-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.note-toggle {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.note-toggle:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 #result-buttons {
   display: flex;
   gap: 10px;

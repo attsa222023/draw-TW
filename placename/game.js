@@ -1005,25 +1005,52 @@
       // r.correct is null for a reconstructed legacy entry (see
       // showArchivedResult()) -- the place name is known, but which tier
       // was picked and whether it landed never got recorded.
+      let lineText;
       if (r.correct === null) {
-        div.textContent = `${i + 1}. ${label}`;
+        lineText = `${i + 1}. ${label}`;
       } else {
         const tier = PLACENAME_CIRCLE_TIERS[r.tierIndex];
-        div.textContent = r.correct
+        lineText = r.correct
           ? `${i + 1}. ${label} — ✅ 用了「${tier.label}」，${tier.points} 分`
           : `${i + 1}. ${label} — ❌ 用了「${tier.label}」，差了約 ${Math.round(r.distanceKm)} 公里，0 分`;
       }
+      // Own span (rather than div.textContent) so buildScoreCard() can
+      // read just this and skip the 📖 toggle button below -- a button
+      // with no click handler on a static image would be pure clutter.
+      const textSpan = document.createElement("span");
+      textSpan.className = "analysis-line-text";
+      textSpan.textContent = lineText;
+      div.appendChild(textSpan);
       breakdownEl.appendChild(div);
+
       // Special mode only, and only for the handful of questions that
       // have one (see special-data.js's own comment on `note`) -- extra
-      // context/trivia about that answer, shown only here (never during
-      // play, never on the shareable score card -- see buildScoreCard()'s
-      // own .analysis-line-only selector) since it's flavor, not something
-      // that needs to compete for space while actually playing.
+      // context/trivia about that answer. Collapsed by default (a book-
+      // emoji toggle button on the question's own line expands it) so it
+      // doesn't lengthen the whole breakdown just for the few questions
+      // that have one; never shown during play or on the shareable score
+      // card either way (see buildScoreCard()'s own .analysis-line-text
+      // selector), since it's flavor, not something that needs to compete
+      // for space while actually playing.
       if (r.note) {
         const noteDiv = document.createElement("div");
         noteDiv.className = "analysis-note";
-        noteDiv.textContent = `📖 ${r.note}`;
+        noteDiv.textContent = r.note;
+        noteDiv.hidden = true;
+
+        const noteToggle = document.createElement("button");
+        noteToggle.type = "button";
+        noteToggle.className = "note-toggle";
+        noteToggle.textContent = "📖";
+        noteToggle.setAttribute("aria-label", "顯示這題的小知識");
+        noteToggle.setAttribute("aria-expanded", "false");
+        noteToggle.addEventListener("click", () => {
+          noteDiv.hidden = !noteDiv.hidden;
+          noteToggle.setAttribute("aria-expanded", String(!noteDiv.hidden));
+          noteToggle.setAttribute("aria-label", noteDiv.hidden ? "顯示這題的小知識" : "隱藏這題的小知識");
+        });
+        div.appendChild(noteToggle);
+
         breakdownEl.appendChild(noteDiv);
       }
     });
@@ -1361,10 +1388,11 @@
 
     ctx.fillStyle = "rgba(234,246,255,0.85)";
     ctx.font = "13px sans-serif";
-    // .analysis-line only -- skips any .analysis-note siblings (special-
-    // mode trivia, see renderResults()), which are flavor for on-screen
-    // reading, not meant to pad out the shareable card.
-    for (const line of [...breakdownEl.querySelectorAll(".analysis-line")].map((el) => el.textContent)) {
+    // .analysis-line-text only -- skips any .analysis-note siblings
+    // (special-mode trivia, collapsed by default -- see renderResults())
+    // and their 📖 toggle button, neither of which belong on a static
+    // shareable image.
+    for (const line of [...breakdownEl.querySelectorAll(".analysis-line-text")].map((el) => el.textContent)) {
       y += wrapText(ctx, line, cardW / 2, y + 14, contentW - 20, 18);
       y += 4;
     }
