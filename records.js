@@ -20,11 +20,21 @@ function loadRecords(key) {
     const raw = localStorage.getItem(key);
     if (!raw) return { bestScore: 0, bestGrade: null, attempts: 0 };
     const parsed = JSON.parse(raw);
-    return {
+    const records = {
       bestScore: typeof parsed.bestScore === "number" ? parsed.bestScore : 0,
       bestGrade: parsed.bestGrade || null,
       attempts: typeof parsed.attempts === "number" ? parsed.attempts : 0,
     };
+    // Passes through any other stored fields verbatim (unvalidated, unlike
+    // the three above) -- e.g. the placename challenge's special mode
+    // stashes bestResults/bestTotalPoints here via recordAttempt()'s own
+    // `extra` param, so a pool's best attempt can be reviewed again later
+    // without needing to have been played again. Every other caller just
+    // never wrote any such field, so this is a no-op for them.
+    for (const k of Object.keys(parsed)) {
+      if (!(k in records)) records[k] = parsed[k];
+    }
+    return records;
   } catch (e) {
     // localStorage unavailable (private browsing, disabled, corrupt value, etc.)
     return { bestScore: 0, bestGrade: null, attempts: 0 };
@@ -33,7 +43,14 @@ function loadRecords(key) {
 
 // Records one finished attempt, updating the best score if beaten.
 // Returns the updated records plus whether this attempt was a new best.
-function recordAttempt(key, scorePct, grade) {
+//
+// `extra` is an optional plain object merged into the stored record
+// alongside {bestScore, bestGrade} whenever THIS attempt becomes the new
+// best (same idea as recordHistoryEntry()'s own `extra` param below) --
+// used by the placename challenge's special mode to also stash the full
+// per-question results of the best attempt. Every other caller leaves
+// this out and is unaffected.
+function recordAttempt(key, scorePct, grade, extra) {
   const records = loadRecords(key);
   const isFirstAttempt = records.attempts === 0;
   records.attempts += 1;
@@ -44,6 +61,7 @@ function recordAttempt(key, scorePct, grade) {
   if (isNewBest) {
     records.bestScore = scorePct;
     records.bestGrade = grade;
+    if (extra) Object.assign(records, extra);
   }
   try {
     localStorage.setItem(key, JSON.stringify(records));

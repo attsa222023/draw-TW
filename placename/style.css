@@ -368,6 +368,8 @@
   margin-top: 12px;
 }
 
+/* A plain card now (not itself a button -- see renderSpecialPoolList())
+   holding two real buttons: play, and review the best attempt. */
 .special-pool-item {
   display: flex;
   flex-direction: column;
@@ -379,11 +381,6 @@
   background: var(--panel-bg);
   border: 2px solid transparent;
   text-align: left;
-  cursor: pointer;
-}
-
-.special-pool-item:hover {
-  border-color: var(--ocean-light);
 }
 
 .special-pool-title {
@@ -399,6 +396,42 @@
 .special-pool-meta {
   font-size: 0.75rem;
   opacity: 0.7;
+}
+
+.special-pool-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.special-pool-play-btn {
+  flex: 1;
+  background: var(--accent);
+  color: #2a1a00;
+  font-weight: 700;
+}
+
+/* Same transparent/outlined look as #review-btn (the in-round "🔍 複習
+   地名位置" button) -- both are secondary actions next to a primary one. */
+.special-pool-review-btn {
+  flex: 1;
+  background: transparent;
+  border: 2px solid var(--ocean-light);
+  color: var(--ink);
+}
+
+.special-pool-review-btn:hover:not(:disabled) {
+  background: var(--ocean-light);
+}
+
+/* Disabled whenever that pool has no best attempt saved to reconstruct
+   yet (see renderSpecialPoolList()) -- same dashed/dimmed treatment as
+   .tier-btn.used for "can't currently pick this." */
+.special-pool-review-btn:disabled {
+  opacity: 0.35;
+  border-style: dashed;
+  cursor: not-allowed;
 }
 
 /* Compact mobile layout: mirrors ../style.css's own #controls fixed-

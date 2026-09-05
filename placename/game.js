@@ -710,14 +710,28 @@
         records.attempts === 0
           ? "尚未挑戰"
           : `🏆 ${records.bestScore}% (${records.bestGrade})・已挑戰 ${records.attempts} 次`;
-      const item = document.createElement("button");
-      item.type = "button";
+      // A plain card (not itself a button -- nesting <button>s isn't valid
+      // HTML) with two real buttons inside: play, and review the best
+      // attempt without having to replay it.
+      const item = document.createElement("div");
       item.className = "special-pool-item";
       item.innerHTML =
         `<span class="special-pool-title">${pool.title}</span>` +
         `<span class="special-pool-desc">${pool.description}</span>` +
-        `<span class="special-pool-meta">${pool.questions.length} 題　${bestText}</span>`;
-      item.addEventListener("click", () => startSpecialRound(pool.id));
+        `<span class="special-pool-meta">${pool.questions.length} 題　${bestText}</span>` +
+        `<div class="special-pool-actions">` +
+        `<button type="button" class="special-pool-play-btn">▶️ 開始挑戰</button>` +
+        `<button type="button" class="special-pool-review-btn">🏆 查看最高成績</button>` +
+        `</div>`;
+      item.querySelector(".special-pool-play-btn").addEventListener("click", () => startSpecialRound(pool.id));
+      const reviewBtn = item.querySelector(".special-pool-review-btn");
+      // Only viewable once there's a full best attempt actually saved to
+      // reconstruct (see finishSpecialRound()'s own recordAttempt() call)
+      // -- never played this pool, or it was only ever played before this
+      // feature shipped (no bestResults stored yet either way), and
+      // there's simply nothing to show.
+      reviewBtn.disabled = !records.bestResults;
+      reviewBtn.addEventListener("click", () => showSpecialBestResult(pool.id));
       specialPoolListEl.appendChild(item);
     });
   }
@@ -782,6 +796,49 @@
     tierUsesLeft = PLACENAME_CIRCLE_TIERS.map(() => maxUsesPerTier);
     results = [];
     startQuestion();
+  }
+
+  // Shows a pool's best-ever attempt read-only, without playing a fresh
+  // round -- same score card + review map as finishing a round normally
+  // produces, just sourced from the saved record's bestResults/
+  // bestTotalPoints (see finishSpecialRound()'s recordAttempt() call)
+  // instead of a just-played `results`. Only ever called from a
+  // renderSpecialPoolList() button that's disabled unless that data
+  // actually exists (never played, or played only before this feature
+  // shipped -- either way nothing to reconstruct), so no legacy/missing-
+  // data fallback is needed here the way showArchivedResult() needs one
+  // for daily mode's older entries.
+  function showSpecialBestResult(poolId) {
+    activeSpecialPoolId = poolId;
+    mode = "special";
+    setActiveModeBtn();
+    maxUsesPerTier = 2;
+    MAX_SCORE = TIER_POINTS_SUM * maxUsesPerTier;
+
+    helpBtn.hidden = true;
+    hintBarEl.hidden = false;
+    wrap.hidden = false;
+    specialPoolPickerEl.hidden = true;
+    updateToolsVisibility();
+
+    // Same fixed map framing as actually playing (see startSpecialRound())
+    // so the review markers land in the right place.
+    configureProjection(0, PLACENAME_POOL);
+    drawBackground();
+
+    const records = loadRecords(specialRecordsKey(poolId));
+    updateBestScoreDisplay(records);
+
+    results = records.bestResults;
+    isLegacyArchive = false;
+    reviewShowAnswer = true; // fresh view -- start the review back on "show answer"
+
+    const [computedGrade, message] = gradeFor(records.bestScore, GRADE_MESSAGES);
+    renderResults(records.bestTotalPoints, records.bestScore, records.bestGrade || computedGrade, message, false);
+    viewingArchivedResult = true;
+    updateReviewLegend();
+    updateReviewToggleVisibility();
+    drawReview();
   }
 
   modeDailyBtn.addEventListener("click", () => {
@@ -1164,7 +1221,14 @@
   function finishSpecialRound() {
     const { totalPoints, pct } = computeScore(results);
     const [grade, message] = gradeFor(pct, GRADE_MESSAGES);
-    const { records, isNewBest } = recordAttempt(specialRecordsKey(activeSpecialPoolId), pct, grade);
+    // Stashes this attempt's full per-question results/score alongside the
+    // running best -- but only actually kept by recordAttempt() when this
+    // becomes the new best -- so that best attempt can be reviewed again
+    // later (see showSpecialBestResult()) without needing to be replayed.
+    const { records, isNewBest } = recordAttempt(specialRecordsKey(activeSpecialPoolId), pct, grade, {
+      bestResults: results,
+      bestTotalPoints: totalPoints,
+    });
     updateBestScoreDisplay(records);
     markQuestionDone();
     renderResults(totalPoints, pct, grade, message, isNewBest);
