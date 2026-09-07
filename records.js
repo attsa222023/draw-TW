@@ -46,10 +46,17 @@ function loadRecords(key) {
 //
 // `extra` is an optional plain object merged into the stored record
 // alongside {bestScore, bestGrade} whenever THIS attempt becomes the new
-// best (same idea as recordHistoryEntry()'s own `extra` param below) --
-// used by the placename challenge's special mode to also stash the full
-// per-question results of the best attempt. Every other caller leaves
-// this out and is unaffected.
+// best -- OR ties the existing best (same idea as recordHistoryEntry()'s
+// own `extra` param below, though that one only ever sees strictly-better
+// scores since dates are one-shot) -- used by the placename challenge's
+// special mode to also stash the full per-question results of the best
+// attempt. Every other caller leaves this out and is unaffected.
+//
+// The tie case matters here specifically: a record already sitting at
+// 100% (e.g. one saved before `extra` existed at all) can never satisfy
+// `scorePct > records.bestScore` again no matter how many more 100% runs
+// follow, so without also merging on an exact tie, that pool could never
+// gain full detail once its best was already perfect.
 function recordAttempt(key, scorePct, grade, extra) {
   const records = loadRecords(key);
   const isFirstAttempt = records.attempts === 0;
@@ -58,10 +65,13 @@ function recordAttempt(key, scorePct, grade, extra) {
   // `scorePct > records.bestScore` alone misses that case, since bestScore
   // also starts at 0, and would otherwise leave bestGrade stuck at null.
   const isNewBest = isFirstAttempt || scorePct > records.bestScore;
+  const isTieWithBest = !isNewBest && scorePct === records.bestScore;
   if (isNewBest) {
     records.bestScore = scorePct;
     records.bestGrade = grade;
-    if (extra) Object.assign(records, extra);
+  }
+  if (extra && (isNewBest || isTieWithBest)) {
+    Object.assign(records, extra);
   }
   try {
     localStorage.setItem(key, JSON.stringify(records));
