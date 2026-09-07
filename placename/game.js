@@ -833,6 +833,24 @@
 
     isLegacyArchive = !records.bestResults;
     results = records.bestResults || [];
+    // A stored result froze `note`/`extra` as of whenever that attempt was
+    // PLAYED -- if a note gets added to a question later (see special-
+    // data.js), an old best predating that addition would otherwise never
+    // show it, even though it's the exact same question. Backfills either
+    // field from the current live question data (matched by question+name)
+    // whenever the stored copy is missing one, without touching entries
+    // that already have their own.
+    const livePool = currentSpecialPool();
+    if (livePool) {
+      results = results.map((r) => {
+        const live = livePool.questions.find((q) => q.question === r.question && q.name === r.name);
+        if (!live) return r;
+        const patch = {};
+        if (!r.note && live.note) patch.note = live.note;
+        if (!r.extra && live.extra) patch.extra = live.extra;
+        return Object.keys(patch).length > 0 ? Object.assign({}, r, patch) : r;
+      });
+    }
     reviewShowAnswer = true; // fresh view -- start the review back on "show answer"
 
     // bestTotalPoints is missing on the same older records bestResults is
