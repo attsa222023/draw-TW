@@ -725,12 +725,14 @@
         `</div>`;
       item.querySelector(".special-pool-play-btn").addEventListener("click", () => startSpecialRound(pool.id));
       const reviewBtn = item.querySelector(".special-pool-review-btn");
-      // Only viewable once there's a full best attempt actually saved to
-      // reconstruct (see finishSpecialRound()'s own recordAttempt() call)
-      // -- never played this pool, or it was only ever played before this
-      // feature shipped (no bestResults stored yet either way), and
-      // there's simply nothing to show.
-      reviewBtn.disabled = !records.bestResults;
+      // Only gated on having played at all -- a record from before
+      // showSpecialBestResult() shipped has no bestResults to reconstruct
+      // a breakdown/review map from, but still shows its bare score/grade
+      // there (same "here's the score, not the detail" fallback
+      // showArchivedResult() already uses for a pre-archive-feature daily
+      // entry) rather than staying disabled forever just because it
+      // predates this feature.
+      reviewBtn.disabled = records.attempts === 0;
       reviewBtn.addEventListener("click", () => showSpecialBestResult(pool.id));
       specialPoolListEl.appendChild(item);
     });
@@ -802,12 +804,12 @@
   // round -- same score card + review map as finishing a round normally
   // produces, just sourced from the saved record's bestResults/
   // bestTotalPoints (see finishSpecialRound()'s recordAttempt() call)
-  // instead of a just-played `results`. Only ever called from a
-  // renderSpecialPoolList() button that's disabled unless that data
-  // actually exists (never played, or played only before this feature
-  // shipped -- either way nothing to reconstruct), so no legacy/missing-
-  // data fallback is needed here the way showArchivedResult() needs one
-  // for daily mode's older entries.
+  // instead of a just-played `results`. A record from before that field
+  // existed (played before this whole feature shipped) has no bestResults
+  // to reconstruct a breakdown/review map from -- same "show the bare
+  // score, not the vanished detail" fallback showArchivedResult() already
+  // uses for a pre-archive-feature daily entry, rather than pretending
+  // there's nothing to see at all just because it predates this feature.
   function showSpecialBestResult(poolId) {
     activeSpecialPoolId = poolId;
     mode = "special";
@@ -829,16 +831,23 @@
     const records = loadRecords(specialRecordsKey(poolId));
     updateBestScoreDisplay(records);
 
-    results = records.bestResults;
-    isLegacyArchive = false;
+    isLegacyArchive = !records.bestResults;
+    results = records.bestResults || [];
     reviewShowAnswer = true; // fresh view -- start the review back on "show answer"
 
+    // bestTotalPoints is missing on the same older records bestResults is
+    // -- reconstructed from the score percentage instead, same fallback
+    // showArchivedResult() uses for a daily entry's missing totalPoints.
+    const totalPoints =
+      typeof records.bestTotalPoints === "number"
+        ? records.bestTotalPoints
+        : Math.round((records.bestScore / 100) * MAX_SCORE);
     const [computedGrade, message] = gradeFor(records.bestScore, GRADE_MESSAGES);
-    renderResults(records.bestTotalPoints, records.bestScore, records.bestGrade || computedGrade, message, false);
+    renderResults(totalPoints, records.bestScore, records.bestGrade || computedGrade, message, false);
     viewingArchivedResult = true;
     updateReviewLegend();
     updateReviewToggleVisibility();
-    drawReview();
+    if (results.length > 0) drawReview();
   }
 
   modeDailyBtn.addEventListener("click", () => {
