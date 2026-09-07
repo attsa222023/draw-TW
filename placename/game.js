@@ -833,22 +833,33 @@
 
     isLegacyArchive = !records.bestResults;
     results = records.bestResults || [];
-    // A stored result froze `note`/`extra` as of whenever that attempt was
-    // PLAYED -- if a note gets added to a question later (see special-
-    // data.js), an old best predating that addition would otherwise never
-    // show it, even though it's the exact same question. Backfills either
-    // field from the current live question data (matched by question+name)
-    // whenever the stored copy is missing one, without touching entries
-    // that already have their own.
+    // A stored result froze `question`/`name`/`extra`/`note` as text
+    // exactly as they read whenever that attempt was PLAYED -- any of
+    // those wordings later getting corrected or a `note` added (see
+    // special-data.js) would otherwise never reach an old best, even
+    // though it's the exact same question. Re-syncs all four from the
+    // current live question data for every entry here, so what's shown is
+    // always today's wording rather than a frozen snapshot; only the
+    // gameplay facts (tierIndex/correct/distanceKm, and lon/lat itself)
+    // stay exactly as recorded, since those reflect what actually
+    // happened in that round, not something to overwrite.
+    //
+    // Matched by lon/lat rather than by question/name text, specifically
+    // because those are exactly the fields expected to drift -- a place's
+    // coordinates are effectively the one thing that never changes once
+    // set, so they're what still identifies "the same question" even
+    // after its wording has been edited.
     const livePool = currentSpecialPool();
     if (livePool) {
       results = results.map((r) => {
-        const live = livePool.questions.find((q) => q.question === r.question && q.name === r.name);
+        const live = livePool.questions.find((q) => q.lon === r.lon && q.lat === r.lat);
         if (!live) return r;
-        const patch = {};
-        if (!r.note && live.note) patch.note = live.note;
-        if (!r.extra && live.extra) patch.extra = live.extra;
-        return Object.keys(patch).length > 0 ? Object.assign({}, r, patch) : r;
+        return Object.assign({}, r, {
+          question: live.question,
+          name: live.name,
+          extra: live.extra,
+          note: live.note,
+        });
       });
     }
     reviewShowAnswer = true; // fresh view -- start the review back on "show answer"
