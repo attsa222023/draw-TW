@@ -75,6 +75,10 @@
     // already claims) so 09-02 still gets its own full day on exactly
     // the v4 (345) pool before growing again.
     { fromDayIndex: dateStringToDayIndex("2026-09-03"), poolSize: 352 },
+    // v6: +13 military-training-center/coastal landmarks (indices
+    // 352-364), pushed 2026-09-07, effective the next day so today's
+    // already-shown question isn't disturbed.
+    { fromDayIndex: dateStringToDayIndex("2026-09-08"), poolSize: 365 },
   ];
 
   function poolSizeForDayIndex(dayIndex) {

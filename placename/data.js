@@ -444,4 +444,38 @@ const PLACENAME_POOL = [
   { name: "關子嶺", lon: 120.5, lat: 23.33333 },
   { name: "四重溪溫泉", lon: 120.74583, lat: 22.09528 },
   { name: "知本", lon: 121.0378, lat: 22.705 },
+  // v6 batch (indices 352-364), added 2026-09-07, effective 2026-09-08
+  // (see POOL_EPOCHS in game.js) -- user-supplied mix of well-known
+  // military training centers and coastal landmarks/beaches. Coordinates
+  // looked up individually (WebSearch/Wikipedia), same standard as the
+  // rest of this file. A few are village/area-level estimates rather than
+  // an exact building address, matching this file's own precision
+  // elsewhere (the original entries are township CENTROIDS, not street
+  // addresses, to begin with):
+  // - 斗煥坪: no single published coordinate for this traditional area
+  //   name (spans several 里 in eastern 頭份市) -- estimated toward its
+  //   own historical core, east of 頭份市中心.
+  // - 龍泉: same situation -- 內埔鄉龍泉村 has no single landmark
+  //   coordinate published either; estimated toward the village's own
+  //   center, southeast of 內埔市區 (the 龍泉/海軍陸戰隊新兵訓練中心
+  //   direction).
+  // - 麟山鼻: no single coordinate found; estimated just southwest of the
+  //   adjacent, precisely-surveyed 富貴角燈塔 (Taiwan's northernmost
+  //   point), which the 麟山鼻 headland trail leads out from.
+  // 成功嶺 reuses the exact coordinate already verified for the special
+  // mode's own 成功嶺 entry (see special-data.js) -- same real place, no
+  // reason to re-derive it.
+  { name: "金六結", lon: 121.742368, lat: 24.756071 },
+  { name: "斗煥坪", lon: 120.945, lat: 24.685 },
+  { name: "凌雲崗", lon: 121.207704, lat: 24.866504 },
+  { name: "成功嶺", lon: 120.600736, lat: 24.112617 },
+  { name: "隆田", lon: 120.319306, lat: 23.192722 },
+  { name: "龍泉", lon: 120.61, lat: 22.6 },
+  { name: "福隆", lon: 121.94315, lat: 25.021998 },
+  { name: "麟山鼻", lon: 121.526, lat: 25.294 },
+  { name: "大武崙", lon: 121.70934, lat: 25.158659 },
+  { name: "外木山", lon: 121.7271, lat: 25.163322 },
+  { name: "七星潭", lon: 121.62717, lat: 24.031426 },
+  { name: "外澳", lon: 121.8431, lat: 24.8778 },
+  { name: "蛤板灣", lon: 120.359769, lat: 22.334006 },
 ];
