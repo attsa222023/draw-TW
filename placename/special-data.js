@@ -72,4 +72,105 @@ const SPECIAL_POOLS = [
       { question: "假如你生氣仰望耶穌", name: "大崗山自然生態園區", lon: 120.348583, lat: 22.860306 },
     ],
   },
+  {
+    id: "yokai",
+    title: "台灣妖怪地圖",
+    description: "這些流傳已久的妖怪傳說，你知道它們出沒在台灣哪裡嗎？",
+    // `question` is just the yokai's own name (the "cultural reference" the
+    // player needs to recognize, same role meme-sites' quotes play);
+    // `name` is the legend's associated place, which is what actually gets
+    // pinpointed; the full story goes in `note` instead of `question` --
+    // showing a whole paragraph as the in-play prompt would make the sticky
+    // progress bar (see style.css) far taller than any other pool's ever
+    // gets, so it's kept as a round-end-only footnote like meme-sites'
+    // 雙龍村 entry already does.
+    //
+    // Two coordinates here are best-effort estimates rather than an exact
+    // address (same exception as pool 1's 大安溪倚天劍 above), since the
+    // legend itself doesn't pin down a single point:
+    // - 番婆鬼: the Kaxabu people's four historic settlements (眉溪四庄 --
+    //   牛眠山/守城/大湳/蜈蚣崙) sit clustered just north of central Puli;
+    //   this anchors roughly in the middle of that cluster.
+    // - 雪山魔女: 黑森林 itself has no single official coordinate (it's an
+    //   area along the main-peak trail, not a landmarked point), and
+    //   369山莊's own coordinates aren't independently published anywhere
+    //   checked either -- this estimates a point ~2km along the ridge
+    //   trail from 雪山主峰's own verified coordinates (24.3834, 121.2318)
+    //   toward Wuling, the approach direction both 369山莊 and 黑森林 sit
+    //   along, rather than reusing the main peak's own exact spot.
+    questions: [
+      {
+        question: "番婆鬼",
+        name: "南投埔里鎮（噶哈巫族部落）",
+        note:
+          "傳說中會使用黑巫術的神秘女巫。深夜會將自己的眼睛挖出換上貓眼以在黑暗中視物，並以芭蕉葉插在腋下飛行，或化作火球移動。",
+        lon: 120.98,
+        lat: 23.978,
+      },
+      {
+        question: "豬哥石",
+        name: "新北市淡水區新興里",
+        note:
+          "早年傳說這顆巨石具有妖力、經常冒出瘴氣，路人若聞到煙味便會神祕失蹤。後來傳說巨石受到神明教化而轉趨向善，現今供奉於淡水的小廟「二號橋石頭公」內。",
+        lon: 121.444271,
+        lat: 25.182086,
+      },
+      {
+        question: "黃衣小飛俠",
+        name: "玉山南峰三岔路・排雲山莊",
+        note: "身穿黃色衣服、在玉山山區出沒的神秘身影。",
+        lon: 120.94975,
+        lat: 23.466603,
+      },
+      {
+        question: "紅衣小女孩",
+        name: "台中・大坑風景區",
+        note: "穿著紅衣的小女孩出現在山路上，遇見她的人往往會陷入恐怖的異象。",
+        lon: 120.7511,
+        lat: 24.1892,
+      },
+      {
+        question: "烏鬼魚人",
+        name: "屏東・小琉球烏鬼洞",
+        note: "傳說烏鬼洞附近曾出現半人半魚的神秘生物。傳說其實是反映了十七世紀的小琉球原住民與荷蘭人之間的戰爭。",
+        lon: 120.3557,
+        lat: 22.33,
+      },
+      {
+        question: "蘭潭水怪",
+        name: "嘉義・蘭潭水庫",
+        note: "蘭潭深處棲息著巨大魚精，也是台灣「人面魚」傳說的重要發源地。",
+        lon: 120.47861,
+        lat: 23.46972,
+      },
+      {
+        question: "林投姐",
+        name: "台南・民族路、西門路一帶",
+        note: "含冤而死的女子化為厲鬼，徘徊於台南街頭尋找仇人。民族路、西門路一帶為傳說中林投姐的自殺地點。",
+        lon: 120.200087,
+        lat: 22.997513,
+      },
+      {
+        question: "雪山魔女",
+        name: "雪山主峰線・黑森林",
+        note: "長髮白衣女子出沒於黑森林，會讓登山客在山林中迷失方向。",
+        lon: 121.245,
+        lat: 24.398,
+      },
+      {
+        question: "幽靈船",
+        name: "台中・衛爾康西餐廳舊址",
+        note: "火災發生時，曾有人目擊一艘古代帆船漂浮於空中。",
+        lon: 120.67,
+        lat: 24.148,
+      },
+      {
+        question: "寶藏巖鬼哭",
+        name: "台北・寶藏巖",
+        note: "傳說橫死在寶藏巖附近的人的靈魂每天晚上都會出來哭泣，直到有人為其祭祀才逐漸停止。",
+        lon: 121.533347,
+        lat: 25.0108,
+      },
+    ],
+  },
 ];
