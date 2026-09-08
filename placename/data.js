@@ -478,4 +478,23 @@ const PLACENAME_POOL = [
   { name: "七星潭", lon: 121.62717, lat: 24.031426 },
   { name: "外澳", lon: 121.8431, lat: 24.8778 },
   { name: "蛤板灣", lon: 120.359769, lat: 22.334006 },
+  // v7 batch (indices 365-372), added 2026-09-08, effective 2026-09-09
+  // (see POOL_EPOCHS in game.js) -- user-supplied reservoirs/lakes plus a
+  // couple of other well-known natural landmarks. Coordinates looked up
+  // individually (WebSearch/Wikipedia). 德基水庫 and 蘭潭水庫 reuse the
+  // exact coordinates already verified for special-data.js's own 德基水壩
+  // (highest pool) and 蘭潭水庫 (yokai pool) entries -- same real places,
+  // no reason to re-derive them. 黃蝶翠谷 has no single coordinate of its
+  // own published (it's a valley, not a landmarked point) -- estimated at
+  // 朝元寺, the temple immediately beside its own trailhead/parking area.
+  // 火炎山 uses the 自然保留區 (the eroded-badlands landform itself) rather
+  // than the separate, nearby 遊樂區 (visitor center) coordinate.
+  { name: "翡翠水庫", lon: 121.58, lat: 24.90917 },
+  { name: "德基水庫", lon: 121.1675, lat: 24.25528 },
+  { name: "虎頭埤", lon: 120.33603, lat: 23.027118 },
+  { name: "蘭潭水庫", lon: 120.47861, lat: 23.46972 },
+  { name: "烏山頭水庫", lon: 120.390244, lat: 23.205694 },
+  { name: "火炎山", lon: 120.72806, lat: 24.369396 },
+  { name: "黃蝶翠谷", lon: 120.587605, lat: 22.933625 },
+  { name: "擎天崗", lon: 121.574262, lat: 25.166443 },
 ];
