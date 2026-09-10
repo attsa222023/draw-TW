@@ -83,6 +83,10 @@
     // 365-372), pushed 2026-09-08, effective the next day so today's
     // already-shown question isn't disturbed.
     { fromDayIndex: dateStringToDayIndex("2026-09-09"), poolSize: 373 },
+    // v8: +9 tourist landmarks/indigenous villages (indices 373-381),
+    // pushed 2026-09-10, effective the next day so today's already-shown
+    // question isn't disturbed.
+    { fromDayIndex: dateStringToDayIndex("2026-09-11"), poolSize: 382 },
   ];
 
   function poolSizeForDayIndex(dayIndex) {

@@ -497,4 +497,24 @@ const PLACENAME_POOL = [
   { name: "火炎山", lon: 120.72806, lat: 24.369396 },
   { name: "黃蝶翠谷", lon: 120.587605, lat: 22.933625 },
   { name: "擎天崗", lon: 121.574262, lat: 25.166443 },
+  // v8 batch (indices 373-381), added 2026-09-10, effective 2026-09-11
+  // (see POOL_EPOCHS in game.js) -- user-supplied mix of tourist
+  // landmarks and indigenous villages. Coordinates looked up individually
+  // (WebSearch/Wikipedia). 羅娜 uses the village's own surveyed GPS point
+  // (羅娜天主堂/羅娜部落) rather than 信義鄉公所's, which sits in a
+  // different village entirely (明德村) despite sharing the township.
+  // 哈瑪星 has no single coordinate of its own published (it's a
+  // historic district, not a landmarked point) -- estimated at the
+  // 哈瑪星鐵道文化園區/舊高雄港站 site, between the already-precise 西子灣
+  // entry and 鹽埕區, which the district's own boundary (五福四路以南、
+  // 鼓山漁港以東) comfortably covers either way.
+  { name: "猴硐", lon: 121.8269607, lat: 25.0873326 },
+  { name: "西子灣", lon: 120.264473, lat: 22.628285 },
+  { name: "哈瑪星", lon: 120.281, lat: 22.622 },
+  { name: "鰲鼓", lon: 120.11924, lat: 23.506427 },
+  { name: "伊達邵", lon: 120.92946, lat: 23.848909 },
+  { name: "羅娜", lon: 120.8703, lat: 23.6281 },
+  { name: "達邦", lon: 120.75023, lat: 23.45427 },
+  { name: "蒜頭", lon: 120.299717, lat: 23.479446 },
+  { name: "林鳳營", lon: 120.321056, lat: 23.242556 },
 ];
